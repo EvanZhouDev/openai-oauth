@@ -5,10 +5,11 @@ import {
 	createCodexOAuthClient,
 	resolveAuthFileCandidates,
 } from "../../openai-oauth-core/src/index.js"
-import packageJson from "../package.json" with { type: 'json' };
+import packageJson from "../package.json" with { type: "json" }
 import { startOpenAIOAuthServer } from "./index.js"
 import { resolveOpenAIOAuthModels } from "./models.js"
 import { DEFAULT_PORT } from "./shared.js"
+import { checkForOpenAIOAuthUpdates } from "./update-check.js"
 
 export type CliArgs = {
 	host?: string
@@ -217,6 +218,12 @@ export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 			availableModels,
 		),
 	)
+
+	void checkForOpenAIOAuthUpdates(packageJson.version, {
+		onWarning: (message) => {
+			console.error(message)
+		},
+	})
 
 	const shutdown = async () => {
 		await server.close()
