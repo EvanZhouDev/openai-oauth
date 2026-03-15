@@ -24,11 +24,11 @@
 		"test:live": "LIVE_CODEX_E2E=1 vitest run test/live.e2e.test.ts"
 	},
 	"dependencies": {
-		"ai": "6.0.0-beta.138",
+		"ai": "6.0.116",
 		"yargs": "^17.7.2"
 	},
 	"devDependencies": {
-		"@ai-sdk/openai": "3.0.0-beta.87",
+		"@ai-sdk/openai": "3.0.41",
 		"@types/node": "20.17.24",
 		"@types/yargs": "^17.0.33",
 		"openai-oauth-core": "workspace:*",
