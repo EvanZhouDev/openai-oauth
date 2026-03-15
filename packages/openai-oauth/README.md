@@ -1,5 +1,7 @@
 # openai-oauth
 
+[GitHub](https://github.com/EvanZhouDev/openai-oauth) | [Legal](#legal)
+
 OpenAI-compatible local endpoint backed by your ChatGPT account.
 
 ## Usage
@@ -58,3 +60,15 @@ What is intentionally not there yet:
 OpenAI's Codex CLI uses a special endpoint at `chatgpt.com/backend-api/codex/responses` to let you use special OpenAI rate limits tied to your ChatGPT account.
 
 By using the same Oauth tokens as Codex, we can effectively use OpenAI's API through Oauth instead of buying API credits.
+
+## Legal
+
+This is an unofficial, community-maintained project and is not affiliated with, endorsed by, or sponsored by OpenAI, Inc.
+
+It uses your local Codex/ChatGPT authentication cache (auth.json, e.g. `~/.codex/auth.json`) and should be treated like password-equivalent credentials.
+
+Use only for personal, local experimentation on trusted machines; do not run as a hosted service, do not share access, and do not pool or redistribute tokens.
+
+You are solely responsible for complying with OpenAI’s Terms, policies, and any applicable agreements; misuse may result in rate limits, suspension, or termination.
+
+Provided “as is” with no warranties; you assume all risk for data exposure, costs, and account actions.

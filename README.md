@@ -1,5 +1,7 @@
 # openai-oauth
 
+[NPM](https://www.npmjs.com/package/openai-oauth) | [Legal](#legal)
+
 Free OpenAI API access with your ChatGPT account.
 
 Just run `npx openai-oauth`.
@@ -89,3 +91,15 @@ By using the same Oauth tokens as Codex, we can effectively use OpenAI's API thr
   Public Vercel AI SDK provider that talks directly to Codex using local auth files.
 - `packages/openai-oauth`
   Public CLI and localhost proxy package intended for `npx openai-oauth`.
+
+## Legal
+
+This is an unofficial, community-maintained project and is not affiliated with, endorsed by, or sponsored by OpenAI, Inc.
+
+It uses your local Codex/ChatGPT authentication cache (auth.json, e.g. ~/.codex/auth.json) and should be treated like password-equivalent credentials.
+
+Use only for personal, local experimentation on trusted machines; do not run as a hosted service, do not share access, and do not pool or redistribute tokens.
+
+You are solely responsible for complying with OpenAI’s Terms, policies, and any applicable agreements; misuse may result in rate limits, suspension, or termination.
+
+Provided “as is” with no warranties; you assume all risk for data exposure, costs, and account actions.
