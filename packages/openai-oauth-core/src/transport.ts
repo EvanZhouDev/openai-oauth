@@ -51,7 +51,6 @@ class AuthManager {
 			clientId: this.settings.clientId,
 			issuer: this.settings.issuer,
 			tokenUrl: this.settings.tokenUrl,
-			authorizationUrl: this.settings.authorizationUrl,
 			fetch: this.fetch,
 			ensureFresh: this.settings.ensureFresh,
 			now: this.settings.now,

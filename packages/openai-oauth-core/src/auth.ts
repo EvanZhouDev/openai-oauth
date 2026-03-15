@@ -37,7 +37,6 @@ export type AuthLoaderOptions = {
 	clientId?: string
 	issuer?: string
 	tokenUrl?: string
-	authorizationUrl?: string
 	authFilePath?: string
 	fetch: FetchFunction
 	ensureFresh?: boolean
