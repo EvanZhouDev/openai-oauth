@@ -1,6 +1,6 @@
 {
 	"name": "openai-oauth-provider",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Vercel AI SDK Provider for Free OpenAI API access with your ChatGPT account.",
 	"type": "module",
 	"exports": {
