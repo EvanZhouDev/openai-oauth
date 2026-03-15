@@ -3,8 +3,8 @@ import {
 	parseCliArgs,
 	toMissingAuthFileMessage,
 	toServerOptions,
-	toStartupMessage,
 } from "../src/cli-app.js"
+import { toStartupMessage } from "../src/cli-logging.js"
 
 describe("openai oauth cli", () => {
 	test("parses kebab-case flags into server options", () => {
@@ -46,23 +46,15 @@ describe("openai oauth cli", () => {
 
 	test("formats the default startup message for local usage", () => {
 		expect(
-			toStartupMessage(
-				{
-					host: "127.0.0.1",
-					port: 10531,
-					models: undefined,
-					codexVersion: undefined,
-					baseURL: undefined,
-					clientId: undefined,
-					tokenUrl: undefined,
-					authFilePath: undefined,
-				},
-				["gpt-5.4", "gpt-5.3-codex"],
-			),
+			toStartupMessage("http://127.0.0.1:10531/v1", [
+				"gpt-5.4",
+				"gpt-5.3-codex",
+			]),
 		).toBe(
 			[
 				"OpenAI-compatible endpoint ready at http://127.0.0.1:10531/v1",
 				"Use this as your OpenAI base URL. No API key is required.",
+				"",
 				"Available Models: gpt-5.4, gpt-5.3-codex",
 			].join("\n"),
 		)

@@ -39,7 +39,7 @@ describe("update check", () => {
 		})
 
 		expect(warnings).toEqual([
-			"A newer version of openai-oauth is available: 0.0.1 -> 0.0.4. Run `npx openai-oauth@latest` to use the newest version.",
+			"A newer version of openai-oauth is available: 0.0.1 -> 0.0.4.\nRun `npx openai-oauth@latest` to use the newest version.",
 		])
 	})
 

@@ -6,6 +6,7 @@ import {
 	resolveAuthFileCandidates,
 } from "../../openai-oauth-core/src/index.js"
 import packageJson from "../package.json" with { type: "json" }
+import { installCliWarningLogger, toStartupMessage } from "./cli-logging.js"
 import { startOpenAIOAuthServer } from "./index.js"
 import { resolveOpenAIOAuthModels } from "./models.js"
 import { DEFAULT_PORT } from "./shared.js"
@@ -161,19 +162,6 @@ const toMissingAuthFileMessage = (authFilePath: string | undefined): string => {
 	].join("\n")
 }
 
-const toStartupMessage = (
-	options: ReturnType<typeof toServerOptions>,
-	availableModels: string[],
-): string => {
-	const baseUrl = `http://${options.host ?? "127.0.0.1"}:${options.port ?? DEFAULT_PORT}/v1`
-
-	return [
-		`OpenAI-compatible endpoint ready at ${baseUrl}`,
-		"Use this as your OpenAI base URL. No API key is required.",
-		`Available Models: ${availableModels.join(", ")}`,
-	].join("\n")
-}
-
 export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 	if (isHelpFlag(argv)) {
 		console.log(toHelpMessage())
@@ -184,6 +172,8 @@ export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 		console.log(packageJson.version)
 		return
 	}
+
+	installCliWarningLogger()
 
 	const args = parseCliArgs(argv)
 	const options = toServerOptions(args)
@@ -210,12 +200,11 @@ export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 
 	console.log(
 		toStartupMessage(
-			{
-				...options,
-				host: server.host,
-				port: server.port,
-			},
+			`http://${server.host}:${server.port}/v1`,
 			availableModels,
+			{
+				useColor: process.stdout.isTTY,
+			},
 		),
 	)
 
@@ -239,4 +228,4 @@ export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 	})
 }
 
-export { createCliParser, toMissingAuthFileMessage, toStartupMessage }
+export { createCliParser, toMissingAuthFileMessage }
