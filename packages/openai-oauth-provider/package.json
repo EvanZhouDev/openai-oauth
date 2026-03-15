@@ -19,14 +19,15 @@
 		"test:live": "LIVE_CODEX_E2E=1 vitest run test/live.e2e.test.ts"
 	},
 	"dependencies": {
-		"@ai-sdk/openai": "3.0.0-beta.87",
+		"@ai-sdk/provider": "3.0.0-beta.25",
 		"@ai-sdk/provider-utils": "4.0.0-beta.44"
 	},
 	"peerDependencies": {
-		"@ai-sdk/provider": "3.0.0-beta.25",
+		"@ai-sdk/openai": "3.0.0-beta.87",
 		"ai": "6.0.0-beta.138"
 	},
 	"devDependencies": {
+		"@ai-sdk/openai": "3.0.0-beta.87",
 		"@ai-sdk/provider": "3.0.0-beta.25",
 		"ai": "6.0.0-beta.138",
 		"@types/node": "20.17.24",
