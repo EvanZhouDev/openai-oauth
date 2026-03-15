@@ -1,0 +1,33 @@
+{
+	"name": "openai-oauth-provider",
+	"version": "0.0.0",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsup src/index.ts --format esm --dts --outDir dist --clean",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:live": "LIVE_CODEX_E2E=1 vitest run test/live.e2e.test.ts"
+	},
+	"dependencies": {
+		"@ai-sdk/openai": "3.0.0-beta.87",
+		"@ai-sdk/provider": "3.0.0-beta.25",
+		"@ai-sdk/provider-utils": "4.0.0-beta.44",
+		"ai": "6.0.0-beta.138"
+	},
+	"devDependencies": {
+		"@types/node": "20.17.24",
+		"openai-oauth-core": "workspace:*",
+		"typescript": "latest",
+		"vitest": "latest",
+		"zod": "^3.25.76"
+	}
+}
