@@ -14,6 +14,7 @@
 	],
 	"scripts": {
 		"build": "tsup src/index.ts --format esm --dts --outDir dist --clean",
+		"prepublishOnly": "bun run build",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run",
 		"test:live": "LIVE_CODEX_E2E=1 vitest run test/live.e2e.test.ts"
