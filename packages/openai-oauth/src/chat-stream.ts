@@ -48,6 +48,7 @@ export const streamChatCompletions = async (
 	},
 ): Promise<Response> => {
 	const toolIndexes = new Map<string, number>()
+	const toolsWithDeltas = new Set<string>()
 	const created = Math.floor(Date.now() / 1000)
 	const id = `chatcmpl_${crypto.randomUUID()}`
 	const result = streamText({
@@ -139,6 +140,7 @@ export const streamChatCompletions = async (
 						if (index == null) {
 							break
 						}
+						toolsWithDeltas.add(part.id)
 
 						controller.enqueue(
 							encodeSse({
@@ -152,6 +154,42 @@ export const streamChatCompletions = async (
 										delta: {
 											tool_calls: [
 												{ index, function: { arguments: part.delta } },
+											],
+										},
+										finish_reason: null,
+									},
+								],
+							}),
+						)
+						break
+					}
+					case "tool-call": {
+						// Some models (e.g. gpt-5.3-codex-spark) return tool call
+						// arguments in one shot without streaming deltas. When no
+						// tool-input-delta events were emitted, emit the complete
+						// arguments from the final tool-call event.
+						const index = toolIndexes.get(part.toolCallId)
+						if (index == null || toolsWithDeltas.has(part.toolCallId)) {
+							break
+						}
+
+						controller.enqueue(
+							encodeSse({
+								id,
+								object: "chat.completion.chunk",
+								created,
+								model: request.model,
+								choices: [
+									{
+										index: 0,
+										delta: {
+											tool_calls: [
+												{
+													index,
+													function: {
+														arguments: JSON.stringify(part.input),
+													},
+												},
 											],
 										},
 										finish_reason: null,
