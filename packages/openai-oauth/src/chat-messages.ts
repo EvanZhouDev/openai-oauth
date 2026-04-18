@@ -70,6 +70,12 @@ const toTextParts = (content: unknown): string => {
 		.join("")
 }
 
+// Matches `data:image/<subtype>[;<param>=<value>]*;base64,<payload>`. Data URLs
+// commonly carry additional `;param` segments (e.g. `;charset=utf-8`, `;name=…`)
+// between the media type and the `;base64` marker, and all of them should be
+// handled the same way.
+const DATA_IMAGE_RE = /^data:(image\/[^;,]+)(?:;[^,;]+)*;base64,(.+)$/
+
 const toUserContent = (content: unknown) => {
 	if (typeof content === "string") {
 		return content
@@ -82,6 +88,7 @@ const toUserContent = (content: unknown) => {
 	const parts: Array<
 		| { type: "text"; text: string }
 		| { type: "image"; image: URL; mediaType?: string }
+		| { type: "file"; data: string; mediaType: string }
 	> = []
 
 	for (const item of content) {
@@ -99,9 +106,18 @@ const toUserContent = (content: unknown) => {
 			isRecord(item.image_url) &&
 			typeof item.image_url.url === "string"
 		) {
-			try {
-				parts.push({ type: "image", image: new URL(item.image_url.url) })
-			} catch {}
+			const dataMatch = item.image_url.url.match(DATA_IMAGE_RE)
+			if (dataMatch) {
+				parts.push({
+					type: "file",
+					data: dataMatch[2],
+					mediaType: dataMatch[1],
+				})
+			} else {
+				try {
+					parts.push({ type: "image", image: new URL(item.image_url.url) })
+				} catch {}
+			}
 		}
 	}
 
