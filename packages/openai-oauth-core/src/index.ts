@@ -8,6 +8,7 @@ export {
 export {
 	collectCompletedResponseFromSse,
 	iterateServerSentEvents,
+	normalizeCodexResponsesSseStream,
 	type ServerSentEvent,
 } from "./sse.js"
 export {

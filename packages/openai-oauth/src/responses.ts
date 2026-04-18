@@ -2,6 +2,7 @@ import {
 	type CodexOAuthClient,
 	collectCompletedResponseFromSse,
 	normalizeCodexResponsesBody,
+	normalizeCodexResponsesSseStream,
 } from "../../openai-oauth-core/src/index.js"
 import {
 	copyUpstreamResponse,
@@ -50,7 +51,10 @@ export const handleResponsesRequest = async (
 	}
 
 	if (wantsStream) {
-		return new Response(upstream.body, {
+		const body = upstream.body
+			? normalizeCodexResponsesSseStream(upstream.body)
+			: null
+		return new Response(body, {
 			status: upstream.status,
 			headers: {
 				...sseHeaders,
