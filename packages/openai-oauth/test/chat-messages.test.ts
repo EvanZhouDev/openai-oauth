@@ -139,7 +139,7 @@ describe("toModelMessages", () => {
 		])
 	})
 
-	test("ignores non-image data: URLs", () => {
+	test("does not convert non-image data: URLs", () => {
 		const result = toModelMessages([
 			{
 				role: "user",
@@ -155,9 +155,11 @@ describe("toModelMessages", () => {
 			},
 		])
 
-		// The data: URL doesn't match image/* pattern, and new URL() would
-		// succeed but the supportedUrls check downstream would reject it.
-		// The regex only matches image/* so it falls through to the URL path.
+		// Only `data:image/...` URLs are intentionally special-cased here.
+		// Other `data:` media types fall through to the URL path unchanged;
+		// callers that need to send them should convert them before invoking
+		// `toModelMessages`. The downstream AI SDK `supportedUrls` check may
+		// still reject them — that is outside the scope of this function.
 		expect(result).toEqual([
 			{
 				role: "user",
@@ -167,6 +169,35 @@ describe("toModelMessages", () => {
 						image: new URL("data:application/pdf;base64,AAAA"),
 					},
 					{ type: "text", text: "Read this" },
+				],
+			},
+		])
+	})
+
+	test("handles image data: URLs with extra parameters before base64", () => {
+		const result = toModelMessages([
+			{
+				role: "user",
+				content: [
+					{
+						type: "image_url",
+						image_url: {
+							url: "data:image/png;name=avatar.png;charset=utf-8;base64,iVBORw0KG",
+						},
+					},
+				],
+			},
+		])
+
+		expect(result).toEqual([
+			{
+				role: "user",
+				content: [
+					{
+						type: "file",
+						data: "iVBORw0KG",
+						mediaType: "image/png",
+					},
 				],
 			},
 		])

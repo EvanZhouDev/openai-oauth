@@ -70,7 +70,11 @@ const toTextParts = (content: unknown): string => {
 		.join("")
 }
 
-const DATA_IMAGE_RE = /^data:(image\/[^;]+);base64,(.+)$/
+// Matches `data:image/<subtype>[;<param>=<value>]*;base64,<payload>`. Data URLs
+// commonly carry additional `;param` segments (e.g. `;charset=utf-8`, `;name=…`)
+// between the media type and the `;base64` marker, and all of them should be
+// handled the same way.
+const DATA_IMAGE_RE = /^data:(image\/[^;,]+)(?:;[^,;]+)*;base64,(.+)$/
 
 const toUserContent = (content: unknown) => {
 	if (typeof content === "string") {
