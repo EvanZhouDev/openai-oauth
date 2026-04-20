@@ -3,6 +3,7 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { createOpenAIOAuthFetchHandler } from "../src/index.js"
+import { handleChatCompletionsRequest } from "../src/chat-completions.js"
 
 const createAuthFile = async (): Promise<string> => {
 	const root = await fs.mkdtemp(path.join(os.tmpdir(), "openai-oauth-server-"))
@@ -297,5 +298,61 @@ describe("openai oauth server", () => {
 				message: "`messages` must be an array.",
 			}),
 		)
+	})
+
+	test("supports json_schema response_format for chat completions", async () => {
+		const response = await handleChatCompletionsRequest(
+			new Request("http://localhost/v1/chat/completions", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					model: "gpt-5.4-mini",
+					messages: [{ role: "user", content: "classify this" }],
+					response_format: {
+						type: "json_schema",
+						json_schema: {
+							name: "chooser_decision",
+							schema: {
+								type: "object",
+								additionalProperties: false,
+								properties: {
+									should_request: { type: "boolean" },
+									question: { type: "string" },
+								},
+								required: ["should_request", "question"],
+							},
+						},
+					},
+				}),
+			}),
+			(() => ({})) as any,
+			undefined,
+			{
+				generateObjectFn: vi.fn(async () => ({
+					object: { should_request: false, question: "" },
+					finishReason: "stop",
+					usage: {
+						inputTokens: 10,
+						outputTokens: 5,
+						totalTokens: 15,
+					},
+				})) as any,
+			},
+		)
+
+		expect(response.status).toBe(200)
+		await expect(response.json()).resolves.toMatchObject({
+			choices: [
+				{
+					message: {
+						role: "assistant",
+						content: "{\"should_request\":false,\"question\":\"\"}",
+					},
+					finish_reason: "stop",
+				},
+			],
+		})
 	})
 })
