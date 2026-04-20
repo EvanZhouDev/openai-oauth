@@ -242,9 +242,25 @@ describe("openai oauth server", () => {
 		})
 	})
 
-	test("rejects previous_response_id on the stateless responses endpoint", async () => {
+	test("forwards previous_response_id to upstream when not cached locally", async () => {
 		const authFilePath = await createAuthFile()
-		const fetch = vi.fn()
+		const fetch = vi.fn(async () => {
+			const stream = new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(
+						new TextEncoder().encode(
+							[
+								"event: response.completed",
+								'data: {"response":{"id":"resp_2","status":"completed","output":[]}}',
+								"",
+							].join("\n"),
+						),
+					)
+					controller.close()
+				},
+			})
+			return new Response(stream, { status: 200 })
+		})
 		const handler = createOpenAIOAuthFetchHandler({
 			authFilePath,
 			ensureFresh: false,
@@ -266,8 +282,18 @@ describe("openai oauth server", () => {
 			}),
 		)
 
-		expect(response.status).toBe(400)
-		expect(fetch).not.toHaveBeenCalled()
+		expect(fetch).toHaveBeenCalledTimes(1)
+		const [, init] = fetch.mock.calls[0] ?? []
+		expect(JSON.parse(String(init?.body))).toMatchObject({
+			model: "gpt-5.2",
+			previous_response_id: "resp_1",
+		})
+		expect(response.status).toBe(200)
+
+		await fs.rm(path.dirname(authFilePath), {
+			recursive: true,
+			force: true,
+		})
 	})
 
 	test("emits a chat error log when messages is invalid", async () => {
