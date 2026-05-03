@@ -218,6 +218,27 @@ export const normalizeCodexResponsesBody = (
 	}
 
 	delete normalized.max_output_tokens
+	// Codex backend rejects these params; strip for compatibility with LiteLLM/Anthropic-format clients.
+	delete normalized.user
+	delete normalized.temperature
+	delete normalized.top_p
+
+	// LiteLLM translates Anthropic's web_search server tool to OpenAI's public name
+	// (web_search_preview). The Codex backend uses the internal name (web_search) and
+	// requires external_web_access:true to perform live searches (default is cached mode).
+	let renamedWebSearch = false
+	if (Array.isArray(normalized.tools)) {
+		normalized.tools = (normalized.tools as unknown[]).map((t) => {
+			if (t && typeof t === "object" && (t as Record<string, unknown>).type === "web_search_preview") {
+				renamedWebSearch = true
+				return { ...(t as Record<string, unknown>), type: "web_search", external_web_access: true }
+			}
+			return t
+		})
+	}
+	if (renamedWebSearch && normalized.tool_choice && normalized.tool_choice !== "none") {
+		normalized.tool_choice = "auto"
+	}
 
 	return normalized
 }
@@ -356,8 +377,14 @@ export const createCodexOAuthFetch = (
 		)
 	}
 
-	if (typeof fetch.preconnect === "function") {
-		codexFetch.preconnect = fetch.preconnect.bind(fetch)
+	// Bun/Undici expose a non-standard `preconnect` method on fetch; TypeScript's
+	// FetchFunction type doesn't know about it, so route through `unknown`.
+	const maybePreconnect = (fetch as unknown as { preconnect?: unknown })
+		.preconnect
+	if (typeof maybePreconnect === "function") {
+		;(codexFetch as unknown as { preconnect?: unknown }).preconnect = (
+			maybePreconnect as (...args: unknown[]) => unknown
+		).bind(fetch)
 	}
 
 	return codexFetch
