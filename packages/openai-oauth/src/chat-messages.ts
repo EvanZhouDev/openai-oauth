@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer"
 import { jsonSchema, type ModelMessage, tool } from "ai"
 import { isJsonValue, isRecord } from "./shared.js"
 import type {
@@ -70,6 +71,33 @@ const toTextParts = (content: unknown): string => {
 		.join("")
 }
 
+type UserContentPart =
+	| { type: "text"; text: string }
+	| { type: "image"; image: URL | Uint8Array; mediaType?: string }
+
+const DATA_IMAGE_URL_PATTERN = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/s
+
+const toImagePart = (url: string): UserContentPart | undefined => {
+	const dataUrlMatch = DATA_IMAGE_URL_PATTERN.exec(url)
+	if (dataUrlMatch) {
+		try {
+			return {
+				type: "image",
+				image: Buffer.from(dataUrlMatch[2] ?? "", "base64"),
+				mediaType: dataUrlMatch[1],
+			}
+		} catch {
+			return undefined
+		}
+	}
+
+	try {
+		return { type: "image", image: new URL(url) }
+	} catch {
+		return undefined
+	}
+}
+
 const toUserContent = (content: unknown) => {
 	if (typeof content === "string") {
 		return content
@@ -79,10 +107,7 @@ const toUserContent = (content: unknown) => {
 		return ""
 	}
 
-	const parts: Array<
-		| { type: "text"; text: string }
-		| { type: "image"; image: URL; mediaType?: string }
-	> = []
+	const parts: UserContentPart[] = []
 
 	for (const item of content) {
 		if (!isRecord(item) || typeof item.type !== "string") {
@@ -99,9 +124,10 @@ const toUserContent = (content: unknown) => {
 			isRecord(item.image_url) &&
 			typeof item.image_url.url === "string"
 		) {
-			try {
-				parts.push({ type: "image", image: new URL(item.image_url.url) })
-			} catch {}
+			const imagePart = toImagePart(item.image_url.url)
+			if (imagePart) {
+				parts.push(imagePart)
+			}
 		}
 	}
 
