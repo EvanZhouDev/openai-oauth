@@ -2,7 +2,10 @@ import { promises as fs } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { createOpenAIOAuthFetchHandler } from "../src/index.js"
+import {
+	CodexResponsesImageGenerationGateway,
+	createOpenAIOAuthFetchHandler,
+} from "../src/index.js"
 
 const createAuthFile = async (): Promise<string> => {
 	const root = await fs.mkdtemp(path.join(os.tmpdir(), "openai-oauth-server-"))
@@ -268,6 +271,120 @@ describe("openai oauth server", () => {
 
 		expect(response.status).toBe(400)
 		expect(fetch).not.toHaveBeenCalled()
+	})
+
+	test("routes image generations through the configured gateway", async () => {
+		const imageGenerationGateway = {
+			generate: vi.fn(async () => ({
+				created: 123,
+				data: [{ b64_json: "image-data" }],
+			})),
+		}
+		const handler = createOpenAIOAuthFetchHandler({
+			imageGenerationGateway,
+		})
+
+		const response = await handler(
+			new Request("http://localhost/v1/images/generations", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					model: "gpt-5.4",
+					prompt: "draw a square",
+					size: "1024x1024",
+				}),
+			}),
+		)
+
+		expect(response.status).toBe(200)
+		expect(imageGenerationGateway.generate).toHaveBeenCalledWith({
+			model: "gpt-5.4",
+			prompt: "draw a square",
+			size: "1024x1024",
+		})
+		await expect(response.json()).resolves.toEqual({
+			created: 123,
+			data: [{ b64_json: "image-data" }],
+		})
+	})
+
+	test("converts codex image generation SSE into images response JSON", async () => {
+		const authFilePath = await createAuthFile()
+		const fetch = vi.fn(async () => {
+			const stream = new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(
+						new TextEncoder().encode(
+							[
+								"event: response.image_generation_call.partial_image",
+								'data: {"partial_image_b64":"partial-image-data"}',
+								"",
+								"event: response.completed",
+								'data: {"response":{"status":"completed"}}',
+								"",
+							].join("\n"),
+						),
+					)
+					controller.close()
+				},
+			})
+
+			return new Response(stream, { status: 200 })
+		})
+		const client = {
+			baseURL: "https://chatgpt.com/backend-api/codex",
+			fetch,
+			request: (path: string, init?: RequestInit) =>
+				fetch(`https://chatgpt.com/backend-api/codex${path}`, init),
+		}
+		const gateway = new CodexResponsesImageGenerationGateway(client)
+
+		const response = await gateway.generate({
+			model: "gpt-5.4",
+			prompt: "draw a square",
+			n: 1,
+			size: "1024x1024",
+			quality: "low",
+		})
+
+		expect(fetch).toHaveBeenCalledTimes(1)
+		const [, init] = fetch.mock.calls[0] ?? []
+		expect(JSON.parse(String(init?.body))).toEqual({
+			model: "gpt-5.4",
+			stream: true,
+			input: [
+				{
+					role: "user",
+					content: [
+						{
+							type: "input_text",
+							text: "draw a square",
+						},
+					],
+				},
+			],
+			tools: [
+				{
+					type: "image_generation",
+					size: "1024x1024",
+					quality: "low",
+				},
+			],
+		})
+		expect(response.data).toEqual([
+			{
+				b64_json: "partial-image-data",
+				revised_prompt: "draw a square",
+			},
+		])
+		expect(response.created).toBeGreaterThan(0)
+
+		await fs.rm(path.dirname(authFilePath), {
+			recursive: true,
+			force: true,
+		})
 	})
 
 	test("emits a chat error log when messages is invalid", async () => {

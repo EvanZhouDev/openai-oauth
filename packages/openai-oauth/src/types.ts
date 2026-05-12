@@ -1,5 +1,6 @@
 import type { Server as HttpServer } from "node:http"
 import type { CodexOAuthSettings } from "../../openai-oauth-core/src/index.js"
+import type { ImageGenerationGateway } from "./image-generation.js"
 
 export type JsonValue =
 	| null
@@ -128,6 +129,7 @@ export type OpenAIOAuthServerOptions = Omit<
 	port?: number
 	models?: string[]
 	codexVersion?: string
+	imageGenerationGateway?: ImageGenerationGateway
 	requestLogger?: (event: OpenAIOAuthServerLogEvent) => void
 }
 

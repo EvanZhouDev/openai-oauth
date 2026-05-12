@@ -1,4 +1,10 @@
 export {
+	CodexResponsesImageGenerationGateway,
+	type ImageGenerationGateway,
+	type ImageGenerationRequest,
+	type ImageGenerationResponse,
+} from "./image-generation.js"
+export {
 	createOpenAIOAuthFetchHandler,
 	startOpenAIOAuthServer,
 } from "./server.js"
