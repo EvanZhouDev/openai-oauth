@@ -1,0 +1,19 @@
+[Unit]
+Description=OpenAI OAuth local API proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=openai-oauth
+Group=openai-oauth
+WorkingDirectory=/opt/openai-oauth
+Environment=HOME=/var/lib/openai-oauth
+Environment=CODEX_HOME=/var/lib/openai-oauth/.codex
+Environment=PATH=/opt/bun/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/bin/node /opt/openai-oauth/packages/openai-oauth/dist/cli.js --host 127.0.0.1 --port 10531 --oauth-file /var/lib/openai-oauth/.codex/auth.json
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
