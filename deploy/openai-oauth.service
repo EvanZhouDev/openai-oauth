@@ -1,0 +1,19 @@
+[Unit]
+Description=OpenAI OAuth local API proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=devops
+Group=devops
+WorkingDirectory=/home/devops/workspace/openai-oauth
+Environment=HOME=/home/devops
+Environment=CODEX_HOME=/home/devops/.codex
+Environment=PATH=/home/devops/.bun/bin:/home/devops/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/devops/.local/bin/node /home/devops/workspace/openai-oauth/packages/openai-oauth/dist/cli.js --host 127.0.0.1 --port 10531 --oauth-file /home/devops/.codex/auth.json
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+:80 {
+	encode zstd gzip
+
+	@authorized header Authorization "Bearer dsket-replace-with-your-local-placeholder-key"
+
+	handle @authorized {
+		reverse_proxy 127.0.0.1:10531 {
+			flush_interval -1
+			header_up Host {host}
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	handle {
+		header Content-Type application/json
+		respond `{"error":{"message":"Unauthorized","type":"invalid_api_key"}}` 401
+	}
+}
