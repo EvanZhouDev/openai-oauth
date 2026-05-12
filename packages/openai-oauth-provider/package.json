@@ -33,7 +33,7 @@
 		"ai": "6.0.116",
 		"@types/node": "20.17.24",
 		"openai-oauth-core": "workspace:*",
-		"typescript": "latest",
+		"typescript": "5.9.2",
 		"vitest": "latest",
 		"zod": "^3.25.76"
 	},
