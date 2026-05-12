@@ -31,6 +31,10 @@ type RequestParts = {
 	signal?: AbortSignal | null
 }
 
+type FetchWithPreconnect = FetchFunction & {
+	preconnect?: (url: string) => void
+}
+
 class AuthManager {
 	private current?: EffectiveAuth
 	private inflight?: Promise<EffectiveAuth>
@@ -356,8 +360,12 @@ export const createCodexOAuthFetch = (
 		)
 	}
 
-	if (typeof fetch.preconnect === "function") {
-		codexFetch.preconnect = fetch.preconnect.bind(fetch)
+	const fetchWithPreconnect = fetch as FetchWithPreconnect
+	const codexFetchWithPreconnect = codexFetch as FetchWithPreconnect
+
+	if (typeof fetchWithPreconnect.preconnect === "function") {
+		codexFetchWithPreconnect.preconnect =
+			fetchWithPreconnect.preconnect.bind(fetch)
 	}
 
 	return codexFetch
