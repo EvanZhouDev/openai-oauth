@@ -2,12 +2,16 @@ import type {
 	ImageGenerationGateway,
 	ImageGenerationRequest,
 } from "./image-generation.js"
+import { isValidReferenceImages } from "./image-generation.js"
 import { isRecord, toErrorResponse, toJsonResponse } from "./shared.js"
 
 const isImageGenerationRequest = (
 	value: unknown,
 ): value is ImageGenerationRequest =>
-	isRecord(value) && typeof value.prompt === "string" && value.prompt.length > 0
+	isRecord(value) &&
+	typeof value.prompt === "string" &&
+	value.prompt.length > 0 &&
+	isValidReferenceImages(value.images)
 
 export const handleImagesGenerationsRequest = async (
 	request: Request,

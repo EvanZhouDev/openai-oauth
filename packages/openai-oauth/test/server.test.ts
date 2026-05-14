@@ -293,6 +293,7 @@ describe("openai oauth server", () => {
 				body: JSON.stringify({
 					model: "gpt-5.4",
 					prompt: "draw a square",
+					images: ["data:image/png;base64,reference-image"],
 					size: "1024x1024",
 				}),
 			}),
@@ -302,6 +303,7 @@ describe("openai oauth server", () => {
 		expect(imageGenerationGateway.generate).toHaveBeenCalledWith({
 			model: "gpt-5.4",
 			prompt: "draw a square",
+			images: ["data:image/png;base64,reference-image"],
 			size: "1024x1024",
 		})
 		await expect(response.json()).resolves.toEqual({
@@ -344,6 +346,7 @@ describe("openai oauth server", () => {
 		const response = await gateway.generate({
 			model: "gpt-5.4",
 			prompt: "draw a square",
+			images: ["data:image/png;base64,existing-data-url", "raw-base64"],
 			n: 1,
 			size: "1024x1024",
 			quality: "low",
@@ -358,6 +361,14 @@ describe("openai oauth server", () => {
 				{
 					role: "user",
 					content: [
+						{
+							type: "input_image",
+							image_url: "data:image/png;base64,existing-data-url",
+						},
+						{
+							type: "input_image",
+							image_url: "data:image/png;base64,raw-base64",
+						},
 						{
 							type: "input_text",
 							text: "draw a square",
@@ -385,6 +396,31 @@ describe("openai oauth server", () => {
 			recursive: true,
 			force: true,
 		})
+	})
+
+	test("rejects invalid image reference lists", async () => {
+		const imageGenerationGateway = {
+			generate: vi.fn(),
+		}
+		const handler = createOpenAIOAuthFetchHandler({
+			imageGenerationGateway,
+		})
+
+		const response = await handler(
+			new Request("http://localhost/v1/images/generations", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					prompt: "draw a square",
+					images: new Array(11).fill("raw-base64"),
+				}),
+			}),
+		)
+
+		expect(response.status).toBe(400)
+		expect(imageGenerationGateway.generate).not.toHaveBeenCalled()
 	})
 
 	test("emits a chat error log when messages is invalid", async () => {

@@ -66,10 +66,15 @@ curl http://127.0.0.1:10531/v1/images/generations \
   -d '{
     "model": "gpt-5.4",
     "prompt": "Generate a simple image of a blue square on a white background.",
+    "images": ["data:image/png;base64,..."],
     "size": "1024x1024",
     "quality": "low"
   }'
 ```
+
+The optional `images` field is a project-specific extension for reference
+images. Entries may be image data URLs or raw base64 strings. Raw base64 entries
+are sent upstream as `data:image/png;base64,...` image inputs.
 
 Response:
 

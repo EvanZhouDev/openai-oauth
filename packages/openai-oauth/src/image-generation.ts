@@ -12,6 +12,7 @@ export type ImageGenerationRequest = {
 	quality?: string
 	background?: string
 	output_format?: string
+	images?: string[]
 }
 
 export type GeneratedImage = {
@@ -34,18 +35,48 @@ const DEFAULT_IMAGE_MODEL = "gpt-5.4"
 const DEFAULT_IMAGE_SIZE = "1024x1024"
 const DEFAULT_IMAGE_QUALITY = "low"
 const MAX_IMAGE_COUNT = 10
+const MAX_REFERENCE_IMAGE_COUNT = 10
+const IMAGE_DATA_URL_PATTERN = /^data:image\/(png|jpeg|jpg|webp);base64,/i
 
-const toResponsesInput = (prompt: string) => [
-	{
-		role: "user",
-		content: [
-			{
-				type: "input_text",
-				text: prompt,
-			},
-		],
-	},
-]
+export const normalizeReferenceImages = (images: string[] = []): string[] =>
+	images.map((image) =>
+		IMAGE_DATA_URL_PATTERN.test(image)
+			? image
+			: `data:image/png;base64,${image}`,
+	)
+
+export const isValidReferenceImages = (value: unknown): value is string[] => {
+	if (value === undefined) {
+		return true
+	}
+
+	if (!Array.isArray(value) || value.length > MAX_REFERENCE_IMAGE_COUNT) {
+		return false
+	}
+
+	return value.every((image) => typeof image === "string" && image.length > 0)
+}
+
+const toResponsesInput = (prompt: string, images?: string[]) => {
+	const content: Record<string, unknown>[] = normalizeReferenceImages(
+		images,
+	).map((image) => ({
+		type: "input_image",
+		image_url: image,
+	}))
+
+	content.push({
+		type: "input_text",
+		text: prompt,
+	})
+
+	return [
+		{
+			role: "user",
+			content,
+		},
+	]
+}
 
 const toImageGenerationTool = (request: ImageGenerationRequest) => {
 	const tool: Record<string, unknown> = {
@@ -154,7 +185,7 @@ export class CodexResponsesImageGenerationGateway
 				body: JSON.stringify({
 					model: request.model ?? DEFAULT_IMAGE_MODEL,
 					stream: true,
-					input: toResponsesInput(request.prompt),
+					input: toResponsesInput(request.prompt, request.images),
 					tools: [toImageGenerationTool(request)],
 				}),
 			})
