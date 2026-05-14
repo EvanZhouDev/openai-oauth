@@ -1,0 +1,7 @@
+.git
+.turbo
+node_modules
+packages/*/node_modules
+packages/*/dist
+npm-debug.log*
+Dockerfile
