@@ -28,6 +28,15 @@ const createAuthFile = async (): Promise<string> => {
 	return authPath
 }
 
+const encodeBase64Url = (value: Record<string, unknown>): string =>
+	Buffer.from(JSON.stringify(value)).toString("base64url")
+
+const createJwt = (payload: Record<string, unknown>): string => {
+	const header = encodeBase64Url({ alg: "none", typ: "JWT" })
+	const body = encodeBase64Url(payload)
+	return `${header}.${body}.signature`
+}
+
 afterEach(() => {
 	vi.restoreAllMocks()
 })
@@ -326,6 +335,104 @@ describe("createCodexOAuthFetch", () => {
 					method: "POST",
 				}),
 			)
+		} finally {
+			await fs.rm(root, {
+				recursive: true,
+				force: true,
+			})
+		}
+	})
+
+	test("refreshes cached auth after the refresh interval elapses", async () => {
+		const root = await fs.mkdtemp(
+			path.join(os.tmpdir(), "codex-oauth-refresh-cache-"),
+		)
+		const authFilePath = path.join(root, "auth.json")
+		const initialNow = new Date("2025-01-01T00:00:00Z")
+		let now = initialNow
+		const initialToken = createJwt({
+			exp: Math.floor(new Date("2025-01-02T00:00:00Z").getTime() / 1000),
+		})
+		const refreshedToken = createJwt({
+			exp: Math.floor(new Date("2025-01-03T00:00:00Z").getTime() / 1000),
+		})
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			if (String(input) === "https://auth.example.com/custom/token") {
+				return new Response(
+					JSON.stringify({
+						access_token: refreshedToken,
+						refresh_token: "new-refresh",
+					}),
+					{
+						status: 200,
+						headers: { "Content-Type": "application/json" },
+					},
+				)
+			}
+
+			return new Response(null, { status: 200 })
+		})
+
+		try {
+			await fs.writeFile(
+				authFilePath,
+				JSON.stringify(
+					{
+						tokens: {
+							access_token: initialToken,
+							refresh_token: "refresh",
+							account_id: "acct-1",
+						},
+						last_refresh: initialNow.toISOString(),
+					},
+					null,
+					2,
+				),
+				"utf-8",
+			)
+
+			const oauthFetch = createCodexOAuthFetch({
+				authFilePath,
+				fetch,
+				now: () => now,
+				tokenUrl: "https://auth.example.com/custom/token",
+			})
+
+			await oauthFetch("responses", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					model: "gpt-5.2",
+				}),
+			})
+
+			now = new Date(initialNow.getTime() + 56 * 60 * 1000)
+
+			await oauthFetch("responses", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					model: "gpt-5.2",
+				}),
+			})
+
+			expect(fetch).toHaveBeenCalledWith(
+				"https://auth.example.com/custom/token",
+				expect.objectContaining({
+					method: "POST",
+				}),
+			)
+
+			const secondUpstreamCall = fetch.mock.calls.filter(
+				([input]) =>
+					String(input) === "https://chatgpt.com/backend-api/codex/responses",
+			)[1]
+			const headers = new Headers(secondUpstreamCall?.[1]?.headers)
+			expect(headers.get("authorization")).toBe(`Bearer ${refreshedToken}`)
 		} finally {
 			await fs.rm(root, {
 				recursive: true,

@@ -32,7 +32,6 @@ type RequestParts = {
 }
 
 class AuthManager {
-	private current?: EffectiveAuth
 	private inflight?: Promise<EffectiveAuth>
 	private readonly settings: CodexOAuthSettings
 	private readonly fetch: FetchFunction
@@ -57,7 +56,6 @@ class AuthManager {
 			now: this.settings.now,
 		})
 			.then((auth) => {
-				this.current = auth
 				this.inflight = undefined
 				return auth
 			})
@@ -70,7 +68,7 @@ class AuthManager {
 	}
 
 	async headers(): Promise<Record<string, string>> {
-		const auth = this.current ?? (await this.ensure())
+		const auth = await this.ensure()
 		return {
 			Authorization: `Bearer ${auth.accessToken}`,
 			"chatgpt-account-id": auth.accountId,
