@@ -4,6 +4,7 @@
     <a href="https://www.npmjs.com/package/openai-oauth">NPM</a> | <a href="#legal">Legal</a>
 </center>
 
+> [!NOTE]
 > ### What's new in v2?
 >
 > - **Sign in with ChatGPT**: Let your users sign in with their ChatGPT accounts in React
@@ -13,11 +14,7 @@
 
 # Quickstart
 
-* [**Dev Proxy**](#dev-proxy): `npx openai-oauth` turns your ChatGPT account into a free local API
-* [**TypeScript SDK**](#typescript-sdk): Use your ChatGPT account with Vercel AI SDK, OpenAI JS SDK, and more
-* [**React Component**](#react-component): Add `Sign in with ChatGPT` to your website
-
-## Dev Proxy
+### Dev Proxy
 
 Turn your ChatGPT account into an OpenAI-Compatible API
 
@@ -31,7 +28,7 @@ Available Models: gpt-5.5, gpt-5.4, ...
 
 [Learn more](#dev-proxy)
 
-## TypeScript SDK
+### TypeScript SDK
 
 Access your ChatGPT account directly from TypeScript on your machine
 
@@ -56,7 +53,7 @@ const result = await generateText({
 
 Works with any OpenAI-compatible client. [Learn more](#typescript-sdk)
 
-## React Component
+### React Component
 
 Let your users sign in with their ChatGPT accounts.
 
@@ -100,6 +97,8 @@ const result = await generateText({
 Works with any web framework and OpenAI-compatible client. [Learn more](#react-component)
 
 # Docs
+
+For more information on each of the packages, refer to package-specific `README.md`.
 
 ## What is Supported
 
