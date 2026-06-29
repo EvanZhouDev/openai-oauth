@@ -7,10 +7,10 @@
 > [!NOTE]
 > ### What's new in v2?
 >
-> - **Sign in with ChatGPT**: Let your users sign in with their ChatGPT accounts in React
-> - **Generalized Client Support**: Use with OpenAI Client, AI SDK, or any other OpenAI-Compatible client
-> - **CLI Login**: You can now login via `npx openai-oauth`
-> - **Cleaner Package Architecture**: Separate packages for CLI, credentials, clients, and more
+> - [**Sign in with ChatGPT**](#react-component): Let your users sign in with their ChatGPT accounts in React
+> - [**Generalized Client Support**](#client-adapters): Use with OpenAI Client, AI SDK, or any other OpenAI-Compatible client
+> - [**CLI Login**](#openai-oauth-cli): You can now login via `npx openai-oauth`
+> - [**Cleaner Package Architecture**](#sdk-overview): Separate packages for CLI, credentials, clients, and more
 
 # Quickstart
 
