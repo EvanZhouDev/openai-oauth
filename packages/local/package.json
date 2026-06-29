@@ -18,6 +18,7 @@
 	],
 	"scripts": {
 		"build": "tsc -p tsconfig.build.json",
+		"prepublishOnly": "bun run build",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run"
 	},
