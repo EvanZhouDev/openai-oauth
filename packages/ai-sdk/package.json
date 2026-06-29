@@ -1,0 +1,45 @@
+{
+	"name": "@openai-oauth/ai-sdk",
+	"version": "0.1.0",
+	"description": "Vercel AI SDK provider adapter for openai-oauth auth handles.",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsup src/index.ts --format esm --dts --outDir dist --clean",
+		"prepublishOnly": "bun run build",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:live": "LIVE_CODEX_E2E=1 vitest run test/live.e2e.test.ts"
+	},
+	"dependencies": {
+		"@ai-sdk/openai": "3.0.41",
+		"@ai-sdk/provider": "3.0.8",
+		"@ai-sdk/provider-utils": "4.0.19",
+		"@openai-oauth/core": "workspace:*"
+	},
+	"peerDependencies": {
+		"ai": "^6.0.116"
+	},
+	"devDependencies": {
+		"@openai-oauth/local": "workspace:*",
+		"@types/node": "20.17.24",
+		"ai": "6.0.116",
+		"typescript": "latest",
+		"vitest": "latest",
+		"zod": "^3.25.76"
+	},
+	"author": "EvanZhouDev",
+	"license": "AGPL-3.0-only",
+	"bugs": {
+		"url": "https://github.com/EvanZhouDev/openai-oauth/issues"
+	},
+	"homepage": "https://github.com/EvanZhouDev/openai-oauth#readme"
+}
