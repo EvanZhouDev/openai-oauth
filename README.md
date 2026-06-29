@@ -16,7 +16,7 @@
 
 ### Dev Proxy
 
-Turn your ChatGPT account into an OpenAI-Compatible API
+Turn your ChatGPT account into an OpenAI-Compatible API. [Learn more](#dev-proxy)
 
 ```txt
 $ npx openai-oauth
@@ -25,8 +25,6 @@ OpenAI-compatible endpoint ready at http://127.0.0.1:10531/v1
 Use this as your OpenAI base URL. No API key is required.
 Available Models: gpt-5.5, gpt-5.4, ...
 ```
-
-[Learn more](#dev-proxy)
 
 ### TypeScript SDK
 
