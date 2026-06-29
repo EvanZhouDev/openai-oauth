@@ -1,13 +1,11 @@
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import {
-	type CodexOAuthSettings,
-	createCodexOAuthClient,
-} from "../../openai-oauth-core/src/index.js"
-import {
 	createOpenAIOAuth,
 	type OpenAIOAuthProvider,
-} from "../../openai-oauth-provider/src/index.js"
+} from "@openai-oauth/ai-sdk"
+import { createCodexOAuthClient } from "@openai-oauth/core"
+import { openaiCredentials } from "@openai-oauth/local"
 import { handleChatCompletionsRequest } from "./chat-completions.js"
 import { createRequestLogger } from "./logging.js"
 import { createModelResolver } from "./models.js"
@@ -85,12 +83,14 @@ const handleRoutes = async (
 export const createOpenAIOAuthFetchHandler = (
 	settings: OpenAIOAuthServerOptions = {},
 ): ((request: Request) => Promise<Response>) => {
-	const sharedSettings: CodexOAuthSettings = {
+	const auth = openaiCredentials(settings)
+	const sharedSettings = {
 		...settings,
-		responsesState: false,
+		auth: () => auth.getSession(),
+		responsesState: false as const,
 	}
 	const client = createCodexOAuthClient(sharedSettings)
-	const provider = createOpenAIOAuth(sharedSettings)
+	const provider = createOpenAIOAuth(auth)
 	const resolveModels = createModelResolver(client, settings.models, {
 		codexVersion: settings.codexVersion,
 	})

@@ -1,7 +1,11 @@
 import { describe, expect, test, vi } from "vitest"
 import {
 	parseCliArgs,
+	parseConfirmationAnswer,
+	toLoginOptions,
 	toMissingAuthFileMessage,
+	toMissingAuthFilePrompt,
+	toOverwriteAuthFilePrompt,
 	toServerOptions,
 } from "../src/cli-app.js"
 import { toStartupMessage } from "../src/cli-logging.js"
@@ -39,6 +43,30 @@ describe("openai oauth cli", () => {
 		})
 	})
 
+	test("parses login command options", () => {
+		const parsed = parseCliArgs([
+			"login",
+			"--host",
+			"127.0.0.1",
+			"--port",
+			"0",
+			"--oauth-file",
+			"/tmp/auth.json",
+			"--no-open",
+			"--login-timeout-ms",
+			"1000",
+		])
+
+		expect(parsed.command).toBe("login")
+		expect(toLoginOptions(parsed)).toMatchObject({
+			host: "127.0.0.1",
+			port: 0,
+			authFilePath: "/tmp/auth.json",
+			openBrowser: false,
+			timeoutMs: 1000,
+		})
+	})
+
 	test("drops empty model entries", () => {
 		const parsed = parseCliArgs(["--models", "gpt-5.4, ,gpt-5.2,,"])
 		expect(parsed.models).toEqual(["gpt-5.4", "gpt-5.2"])
@@ -62,11 +90,38 @@ describe("openai oauth cli", () => {
 
 	test("formats a missing explicit auth file message", () => {
 		expect(toMissingAuthFileMessage("/tmp/missing-auth.json")).toContain(
-			"Run `npx @openai/codex login` and try again.",
+			"Run `npx openai-oauth login` and try again.",
 		)
 		expect(toMissingAuthFileMessage("/tmp/missing-auth.json")).toContain(
 			"/tmp/missing-auth.json",
 		)
+	})
+
+	test("formats missing auth prompt with write destination", () => {
+		expect(toMissingAuthFilePrompt("/tmp/auth.json")).toBe(
+			[
+				"No OpenAI OAuth credentials were found.",
+				"Sign in with ChatGPT now? This will write credentials to /tmp/auth.json.",
+			].join("\n"),
+		)
+	})
+
+	test("formats overwrite prompt with existing auth file", () => {
+		expect(toOverwriteAuthFilePrompt("/tmp/auth.json")).toBe(
+			[
+				"OpenAI OAuth credentials already exist at /tmp/auth.json.",
+				"Sign in with ChatGPT again and overwrite them?",
+			].join("\n"),
+		)
+	})
+
+	test("parses confirmation answers", () => {
+		expect(parseConfirmationAnswer("", true)).toBe(true)
+		expect(parseConfirmationAnswer("", false)).toBe(false)
+		expect(parseConfirmationAnswer("yes", false)).toBe(true)
+		expect(parseConfirmationAnswer("Y", false)).toBe(true)
+		expect(parseConfirmationAnswer("no", true)).toBe(false)
+		expect(parseConfirmationAnswer("anything else", true)).toBe(false)
 	})
 
 	test("does not use hidden environment variable overrides", () => {

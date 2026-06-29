@@ -1,5 +1,5 @@
 import type { Server as HttpServer } from "node:http"
-import type { CodexOAuthSettings } from "../../openai-oauth-core/src/index.js"
+import type { LocalOpenAIOAuthOptions } from "@openai-oauth/local"
 
 export type JsonValue =
 	| null
@@ -120,10 +120,7 @@ export const defaultOpenAIOAuthModels: readonly string[] = [
 	"gpt-5.1-codex-max",
 ]
 
-export type OpenAIOAuthServerOptions = Omit<
-	CodexOAuthSettings,
-	"responsesState"
-> & {
+export type OpenAIOAuthServerOptions = LocalOpenAIOAuthOptions & {
 	host?: string
 	port?: number
 	models?: string[]

@@ -1,18 +1,23 @@
 import { access } from "node:fs/promises"
-import yargs from "yargs"
-import { hideBin } from "yargs/helpers"
+import { createInterface } from "node:readline/promises"
 import {
 	createCodexOAuthClient,
 	resolveAuthFileCandidates,
-} from "../../openai-oauth-core/src/index.js"
+	resolveCodexAuthFilePath,
+} from "@openai-oauth/core"
+import { openaiCredentials } from "@openai-oauth/local"
+import yargs from "yargs"
+import { hideBin } from "yargs/helpers"
 import packageJson from "../package.json" with { type: "json" }
 import { installCliWarningLogger, toStartupMessage } from "./cli-logging.js"
 import { startOpenAIOAuthServer } from "./index.js"
+import { runOpenAIOAuthLogin } from "./login.js"
 import { resolveOpenAIOAuthModels } from "./models.js"
 import { DEFAULT_PORT } from "./shared.js"
 import { checkForOpenAIOAuthUpdates } from "./update-check.js"
 
 export type CliArgs = {
+	command: "serve" | "login"
 	host?: string
 	port?: number
 	models?: string[]
@@ -21,6 +26,12 @@ export type CliArgs = {
 	clientId?: string
 	tokenUrl?: string
 	authFilePath?: string
+	openBrowser?: boolean
+	loginTimeoutMs?: number
+}
+
+const defaultUpdateCheckWarning = (message: string) => {
+	console.error(message)
 }
 
 const parseModels = (value: string | undefined): string[] | undefined => {
@@ -41,6 +52,7 @@ const helpLines = [
 	"",
 	"Usage",
 	"  npx openai-oauth@latest [options]",
+	"  npx openai-oauth@latest login [options]",
 	"",
 	"Options",
 	"  --host <host>              Host interface to bind to.",
@@ -51,13 +63,15 @@ const helpLines = [
 	"  --oauth-client-id <id>     Override the OAuth client id used for refresh.",
 	"  --oauth-token-url <url>    Override the OAuth token URL used for refresh.",
 	"  --oauth-file <path>        Path to the local auth.json file.",
+	"  --no-open                  Print the login URL without opening a browser.",
+	"  --login-timeout-ms <ms>    Login timeout. Default: 300000",
 	"",
 	"Flags",
 	"  --help                     Show help",
 	`  --version                  Show version (${packageJson.version})`,
 	"",
 	"Notes",
-	"  If no auth file is found, run: npx @openai/codex login",
+	"  If no auth file is found, run: npx openai-oauth login",
 	"  By default, available models are discovered from your account.",
 ]
 
@@ -100,6 +114,15 @@ const createCliParser = (argv: string[]) =>
 			type: "string",
 			describe: "Path to the local auth.json file.",
 		})
+		.option("open", {
+			type: "boolean",
+			default: true,
+			describe: "Open the login URL in a browser.",
+		})
+		.option("login-timeout-ms", {
+			type: "number",
+			describe: "Login timeout in milliseconds. Default: 300000",
+		})
 
 const isHelpFlag = (argv: string[]): boolean =>
 	argv.includes("--help") || argv.includes("-h")
@@ -109,9 +132,13 @@ const isVersionFlag = (argv: string[]): boolean => argv.includes("--version")
 export const toHelpMessage = (): string => helpLines.join("\n")
 
 export const parseCliArgs = (argv: string[]): CliArgs => {
-	const parsed = createCliParser(argv).parseSync()
+	const command = argv[0] === "login" ? "login" : "serve"
+	const parsed = createCliParser(
+		command === "login" ? argv.slice(1) : argv,
+	).parseSync()
 
 	return {
+		command,
 		host: parsed.host,
 		port: parsed.port,
 		models: parsed.models,
@@ -120,6 +147,8 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 		clientId: parsed.oauthClientId,
 		tokenUrl: parsed.oauthTokenUrl,
 		authFilePath: parsed.oauthFile,
+		openBrowser: parsed.open,
+		loginTimeoutMs: parsed.loginTimeoutMs,
 	}
 }
 
@@ -132,6 +161,16 @@ export const toServerOptions = (args: CliArgs) => ({
 	clientId: args.clientId,
 	tokenUrl: args.tokenUrl,
 	authFilePath: args.authFilePath,
+})
+
+export const toLoginOptions = (args: CliArgs) => ({
+	host: args.host,
+	port: args.port,
+	clientId: args.clientId,
+	tokenUrl: args.tokenUrl,
+	authFilePath: args.authFilePath,
+	openBrowser: args.openBrowser,
+	timeoutMs: args.loginTimeoutMs,
 })
 
 const findExistingAuthFile = async (
@@ -147,20 +186,84 @@ const findExistingAuthFile = async (
 	return undefined
 }
 
+const findExistingCodexAuthFile = async (
+	authFilePath: string | undefined,
+): Promise<string | undefined> => {
+	const candidate = resolveCodexAuthFilePath(authFilePath)
+	try {
+		await access(candidate)
+		return candidate
+	} catch {
+		return undefined
+	}
+}
+
+const canPrompt = (): boolean =>
+	Boolean(process.stdin.isTTY && process.stdout.isTTY)
+
+const parseConfirmationAnswer = (
+	answer: string,
+	defaultValue: boolean,
+): boolean => {
+	const normalized = answer.trim().toLowerCase()
+	if (!normalized) {
+		return defaultValue
+	}
+
+	return normalized === "y" || normalized === "yes"
+}
+
+const confirm = async (
+	question: string,
+	defaultValue: boolean,
+): Promise<boolean> => {
+	const suffix = defaultValue ? " [Y/n] " : " [y/N] "
+	const readline = createInterface({
+		input: process.stdin,
+		output: process.stdout,
+	})
+
+	try {
+		const answer = await readline.question(`${question}${suffix}`)
+		return parseConfirmationAnswer(answer, defaultValue)
+	} finally {
+		readline.close()
+	}
+}
+
+const toMissingAuthFilePrompt = (authFilePath: string | undefined): string => {
+	const writePath = resolveCodexAuthFilePath(authFilePath)
+	return [
+		"No OpenAI OAuth credentials were found.",
+		`Sign in with ChatGPT now? This will write credentials to ${writePath}.`,
+	].join("\n")
+}
+
+const toOverwriteAuthFilePrompt = (authFilePath: string): string =>
+	[
+		`OpenAI OAuth credentials already exist at ${authFilePath}.`,
+		"Sign in with ChatGPT again and overwrite them?",
+	].join("\n")
+
 const toMissingAuthFileMessage = (authFilePath: string | undefined): string => {
 	if (authFilePath) {
 		return [
 			`No auth file was found at ${authFilePath}.`,
-			"Run `npx @openai/codex login` and try again.",
+			"Run `npx openai-oauth login` and try again.",
 		].join("\n")
 	}
 
 	const candidates = resolveAuthFileCandidates(undefined)
 	return [
 		`No auth file was found in the default search paths: ${candidates.join(", ")}.`,
-		"Run `npx @openai/codex login` and try again.",
+		"Run `npx openai-oauth login` and try again.",
 	].join("\n")
 }
+
+const runUpdateCheck = () =>
+	checkForOpenAIOAuthUpdates(packageJson.version, {
+		onWarning: defaultUpdateCheckWarning,
+	})
 
 export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 	if (isHelpFlag(argv)) {
@@ -176,15 +279,63 @@ export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 	installCliWarningLogger()
 
 	const args = parseCliArgs(argv)
+	const updateCheck = runUpdateCheck()
+
+	if (args.command === "login") {
+		await updateCheck
+		const loginOptions = toLoginOptions(args)
+		const existingAuthFile = await findExistingCodexAuthFile(
+			loginOptions.authFilePath,
+		)
+		if (existingAuthFile) {
+			if (!canPrompt()) {
+				throw new Error(
+					[
+						`OpenAI OAuth credentials already exist at ${existingAuthFile}.`,
+						"Run `npx openai-oauth login` in an interactive terminal to confirm overwrite.",
+					].join("\n"),
+				)
+			}
+
+			const shouldOverwrite = await confirm(
+				toOverwriteAuthFilePrompt(existingAuthFile),
+				false,
+			)
+			if (!shouldOverwrite) {
+				console.log("Login cancelled.")
+				return
+			}
+		}
+
+		await runOpenAIOAuthLogin(loginOptions)
+		return
+	}
+
 	const options = toServerOptions(args)
 	const existingAuthFile = await findExistingAuthFile(options.authFilePath)
 	if (!existingAuthFile) {
-		throw new Error(toMissingAuthFileMessage(options.authFilePath))
+		await updateCheck
+		if (!canPrompt()) {
+			throw new Error(toMissingAuthFileMessage(options.authFilePath))
+		}
+
+		const shouldLogin = await confirm(
+			toMissingAuthFilePrompt(options.authFilePath),
+			true,
+		)
+		if (!shouldLogin) {
+			console.log("Login cancelled.")
+			return
+		}
+
+		await runOpenAIOAuthLogin(toLoginOptions(args))
 	}
 
+	const auth = openaiCredentials(options)
 	const client = createCodexOAuthClient({
 		...options,
-		responsesState: false,
+		auth: () => auth.getSession(),
+		responsesState: false as const,
 	})
 	const availableModels = await resolveOpenAIOAuthModels(
 		client,
@@ -208,11 +359,7 @@ export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 		),
 	)
 
-	void checkForOpenAIOAuthUpdates(packageJson.version, {
-		onWarning: (message) => {
-			console.error(message)
-		},
-	})
+	void updateCheck
 
 	const shutdown = async () => {
 		await server.close()
@@ -228,4 +375,10 @@ export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 	})
 }
 
-export { createCliParser, toMissingAuthFileMessage }
+export {
+	createCliParser,
+	parseConfirmationAnswer,
+	toMissingAuthFileMessage,
+	toMissingAuthFilePrompt,
+	toOverwriteAuthFilePrompt,
+}

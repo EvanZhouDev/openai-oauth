@@ -128,25 +128,6 @@ export const summarizeChatRequest = (request: {
 	toolCount: request.tools?.length ?? 0,
 })
 
-export const usesServerReplayState = (
-	value: Record<string, unknown>,
-): boolean => {
-	if (typeof value.previous_response_id === "string") {
-		return true
-	}
-
-	if (!Array.isArray(value.input)) {
-		return false
-	}
-
-	return value.input.some(
-		(item) =>
-			isRecord(item) &&
-			item.type === "item_reference" &&
-			typeof item.id === "string",
-	)
-}
-
 export const resolveModels = (
 	models: string[] | undefined,
 ): string[] | undefined =>

@@ -2,7 +2,8 @@ import {
 	type CodexOAuthClient,
 	collectCompletedResponseFromSse,
 	normalizeCodexResponsesBody,
-} from "../../openai-oauth-core/src/index.js"
+	usesServerReplayState,
+} from "@openai-oauth/core"
 import {
 	copyUpstreamResponse,
 	corsHeaders,
@@ -10,7 +11,6 @@ import {
 	sseHeaders,
 	toErrorResponse,
 	toJsonResponse,
-	usesServerReplayState,
 } from "./shared.js"
 import type { OpenAIOAuthServerOptions } from "./types.js"
 
@@ -40,7 +40,7 @@ export const handleResponsesRequest = async (
 			normalizeCodexResponsesBody(body, {
 				forceStream: true,
 				instructions: settings.instructions,
-				store: settings.store,
+				storeResponses: settings.storeResponses,
 			}),
 		),
 	})

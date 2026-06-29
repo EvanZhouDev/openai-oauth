@@ -9,21 +9,35 @@ vi.mock("ai", async (importOriginal) => {
 	}
 })
 
+import type { OpenAIOAuthProvider } from "@openai-oauth/ai-sdk"
 import { streamText } from "ai"
 import { streamChatCompletions } from "../src/chat-stream.js"
 import type { ChatRequest } from "../src/types.js"
 
 const mockedStreamText = vi.mocked(streamText)
 
+type StreamTextResult = ReturnType<typeof streamText>
+type ToolCallChunk = {
+	choices?: Array<{
+		delta?: {
+			tool_calls?: Array<{
+				function?: {
+					arguments?: string
+				}
+			}>
+		}
+	}>
+}
+
 /** Helper to create a fake fullStream async iterable from an array of parts. */
-function fakeFullStream(parts: unknown[]) {
+function fakeFullStream(parts: unknown[]): StreamTextResult {
 	return {
 		fullStream: (async function* () {
 			for (const part of parts) {
 				yield part
 			}
 		})(),
-	}
+	} as unknown as StreamTextResult
 }
 
 /** Parse all SSE data lines from a streaming response. */
@@ -37,14 +51,29 @@ async function collectSseData(response: Response): Promise<unknown[]> {
 		.map((data) => JSON.parse(data))
 }
 
-/** Find SSE chunks that contain tool_calls in the delta. */
-function findToolCallChunks(chunks: unknown[]): unknown[] {
-	return chunks.filter(
-		(chunk: any) => chunk.choices?.[0]?.delta?.tool_calls != null,
-	)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null
+
+const isToolCallChunk = (chunk: unknown): chunk is ToolCallChunk => {
+	if (!isRecord(chunk) || !Array.isArray(chunk.choices)) {
+		return false
+	}
+	const firstChoice = chunk.choices[0]
+	if (!isRecord(firstChoice) || !isRecord(firstChoice.delta)) {
+		return false
+	}
+	return Array.isArray(firstChoice.delta.tool_calls)
 }
 
-const dummyProvider = (() => ({})) as any
+const getToolCallArguments = (chunk: ToolCallChunk): string =>
+	chunk.choices?.[0]?.delta?.tool_calls?.[0]?.function?.arguments ?? ""
+
+/** Find SSE chunks that contain tool_calls in the delta. */
+function findToolCallChunks(chunks: unknown[]): ToolCallChunk[] {
+	return chunks.filter(isToolCallChunk)
+}
+
+const dummyProvider = (() => ({})) as unknown as OpenAIOAuthProvider
 const dummyLogContext = {
 	requestId: "test-req",
 	startedAt: Date.now(),
@@ -81,7 +110,7 @@ describe("streamChatCompletions", () => {
 					finishReason: "tool-calls",
 					totalUsage: { promptTokens: 10, completionTokens: 20 },
 				},
-			]) as any,
+			]),
 		)
 
 		const request: ChatRequest = {
@@ -133,9 +162,9 @@ describe("streamChatCompletions", () => {
 		})
 
 		// Remaining chunks: deltas with argument fragments
-		const args = (toolChunks as any[])
+		const args = toolChunks
 			.slice(1)
-			.map((c) => c.choices[0].delta.tool_calls[0].function.arguments)
+			.map((chunk) => getToolCallArguments(chunk))
 			.join("")
 
 		expect(args).toBe('{"file_path":"/etc/hosts"}')
@@ -162,7 +191,7 @@ describe("streamChatCompletions", () => {
 					finishReason: "tool-calls",
 					totalUsage: { promptTokens: 10, completionTokens: 20 },
 				},
-			]) as any,
+			]),
 		)
 
 		const request: ChatRequest = {
@@ -217,8 +246,7 @@ describe("streamChatCompletions", () => {
 		})
 
 		// Second chunk: complete arguments from tool-call fallback
-		const args = (toolChunks[1] as any).choices[0].delta.tool_calls[0]
-			.function.arguments
+		const args = getToolCallArguments(toolChunks[1] ?? {})
 		expect(JSON.parse(args)).toEqual({
 			file_path: "/etc/hosts",
 			offset: 0,

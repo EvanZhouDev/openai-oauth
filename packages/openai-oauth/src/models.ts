@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
-import type { CodexOAuthClient } from "../../openai-oauth-core/src/index.js"
+import type { CodexOAuthClient } from "@openai-oauth/core"
 
 const MODELS_CACHE_TTL_MS = 5 * 60 * 1000
 const CODEX_VERSION_CACHE_TTL_MS = 60 * 60 * 1000

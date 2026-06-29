@@ -1,4 +1,8 @@
 export {
+	type OpenAIOAuthLoginOptions,
+	runOpenAIOAuthLogin,
+} from "./login.js"
+export {
 	createOpenAIOAuthFetchHandler,
 	startOpenAIOAuthServer,
 } from "./server.js"

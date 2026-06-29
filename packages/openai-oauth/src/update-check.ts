@@ -7,6 +7,7 @@ type RegistryPackageResponse = {
 type UpdateCheckDependencies = {
 	fetchImpl?: typeof fetch
 	onWarning?: (message: string) => void
+	timeoutMs?: number
 }
 
 const normalizeVersion = (value: string | undefined): string | undefined => {
@@ -38,13 +39,19 @@ const compareSemver = (left: string, right: string): number => {
 
 const fetchLatestVersion = async (
 	fetchImpl: typeof fetch,
+	signal?: AbortSignal,
 ): Promise<string | undefined> => {
 	try {
-		const response = await fetchImpl(REGISTRY_URL, {
+		const requestInit: RequestInit = {
 			headers: {
 				accept: "application/json",
 			},
-		})
+		}
+		if (signal) {
+			requestInit.signal = signal
+		}
+
+		const response = await fetchImpl(REGISTRY_URL, requestInit)
 
 		if (!response.ok) {
 			return undefined
@@ -68,9 +75,19 @@ export const checkForOpenAIOAuthUpdates = async (
 		return
 	}
 
+	const abortController = new AbortController()
+	const timeout = setTimeout(() => {
+		abortController.abort()
+	}, dependencies.timeoutMs ?? 1500)
+	if (typeof timeout === "object" && "unref" in timeout) {
+		timeout.unref()
+	}
+
 	const latestVersion = await fetchLatestVersion(
 		dependencies.fetchImpl ?? globalThis.fetch,
+		abortController.signal,
 	)
+	clearTimeout(timeout)
 	if (latestVersion == null) {
 		return
 	}
