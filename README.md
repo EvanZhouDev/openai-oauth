@@ -13,6 +13,10 @@
 
 # Quickstart
 
+* [**Dev Proxy**](#dev-proxy): `npx openai-oauth` turns your ChatGPT account into a free local API
+* [**TypeScript SDK**](#typescript-sdk): Use your ChatGPT account with Vercel AI SDK, OpenAI JS SDK, and more
+* [**React Component**](#react-component): Add `Sign in with ChatGPT` to your website
+
 ## Dev Proxy
 
 Turn your ChatGPT account into an OpenAI-Compatible API
