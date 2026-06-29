@@ -1,4 +1,7 @@
 node_modules
 dist
 coverage
+.next
 .turbo
+*.tsbuildinfo
+.DS_Store

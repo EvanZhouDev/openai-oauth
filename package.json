@@ -4,7 +4,8 @@
 	"description": "Free OpenAI API access with your ChatGPT account.",
 	"packageManager": "bun@1.2.18",
 	"workspaces": [
-		"packages/*"
+		"packages/*",
+		"apps/*"
 	],
 	"scripts": {
 		"build": "turbo run build",
