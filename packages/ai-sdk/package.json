@@ -1,6 +1,6 @@
 {
 	"name": "@openai-oauth/ai-sdk",
-	"version": "2.0.0",
+	"version": "2.0.0-beta.0",
 	"description": "Vercel AI SDK provider adapter for openai-oauth auth handles.",
 	"keywords": [
 		"openai",

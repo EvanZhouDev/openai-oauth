@@ -1,6 +1,6 @@
 {
 	"name": "openai-oauth",
-	"version": "2.0.0",
+	"version": "2.0.0-beta.0",
 	"description": "Free OpenAI API access with your ChatGPT account.",
 	"keywords": [
 		"openai",

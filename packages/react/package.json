@@ -1,6 +1,6 @@
 {
 	"name": "@openai-oauth/react",
-	"version": "2.0.0",
+	"version": "2.0.0-beta.0",
 	"description": "React hook and button for OpenAI OAuth sessions.",
 	"keywords": [
 		"openai",
