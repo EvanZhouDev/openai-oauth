@@ -1,4 +1,6 @@
 <picture>
+  <source media="(prefers-color-scheme: dark)" srcset="/assets/banner-dark.webp" type="image/webp">
+  <source media="(prefers-color-scheme: light)" srcset="/assets/banner-light.webp" type="image/webp">
   <source media="(prefers-color-scheme: dark)" srcset="/assets/banner-dark.png">
   <source media="(prefers-color-scheme: light)" srcset="/assets/banner-light.png">
   <img src="/assets/banner-light.png" alt="OpenAI OAuth: Free AI with your ChatGPT account">
@@ -59,7 +61,10 @@ Works with any OpenAI-compatible client. [Learn more](#typescript-sdk)
 
 Let your users sign in with their ChatGPT accounts.
 
-<img src="/assets/sign-in-with-chatgpt-button.png" alt="Sign in with ChatGPT" width="320" />
+<picture>
+  <source srcset="/assets/sign-in-with-chatgpt-button.webp" type="image/webp">
+  <img src="/assets/sign-in-with-chatgpt-button.png" alt="Sign in with ChatGPT" width="320">
+</picture>
 
 ```bash
 npm i @openai-oauth/react @openai-oauth/ai-sdk ai @ai-sdk/react
@@ -235,7 +240,10 @@ The CLI also supports a few configuration options that generally do not need to 
 
 The `openai-oauth` SDK allows you to integrate ChatGPT login into your local apps and also enable **Sign in with ChatGPT** for your users.
 
-![](/assets/package-structure.png)
+<picture>
+  <source srcset="/assets/package-structure.webp" type="image/webp">
+  <img src="/assets/package-structure.png" alt="OpenAI OAuth package structure">
+</picture>
 
 The SDK is primarily built around two concepts:
 
