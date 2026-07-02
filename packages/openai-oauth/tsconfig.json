@@ -1,6 +1,7 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
+		"allowArbitraryExtensions": true,
 		"outDir": "dist",
 		"types": ["node"]
 	},

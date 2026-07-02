@@ -30,7 +30,7 @@
 		"LICENSE"
 	],
 	"scripts": {
-		"build": "tsup src/index.ts src/cli.ts --format esm --dts --outDir dist --clean",
+		"build": "tsup src/index.ts src/cli.ts --format esm --dts --outDir dist --clean --loader .html=text",
 		"dev": "bun ./src/cli.ts",
 		"prepublishOnly": "bun run build",
 		"typecheck": "tsc --noEmit",

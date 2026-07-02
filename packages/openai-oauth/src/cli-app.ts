@@ -30,6 +30,12 @@ export type CliArgs = {
 	loginTimeoutMs?: number
 }
 
+type LoginCancellation = {
+	signal: AbortSignal
+	exitCode: () => number
+	dispose: () => void
+}
+
 const defaultUpdateCheckWarning = (message: string) => {
 	console.error(message)
 }
@@ -55,8 +61,8 @@ const helpLines = [
 	"  npx openai-oauth@latest login [options]",
 	"",
 	"Options",
-	"  --host <host>              Host interface to bind to.",
-	"  --port <port>              Port to listen on. Default: 10531",
+	"  --host <host>              Proxy host. Login callback always listens on loopback.",
+	"  --port <port>              Proxy port. Default: 10531.",
 	"  --models <ids>             Comma-separated model ids to expose from /v1/models.",
 	"  --codex-version <version>  Codex API version to use for model discovery.",
 	"  --base-url <url>           Override the upstream Codex base URL.",
@@ -83,11 +89,11 @@ const createCliParser = (argv: string[]) =>
 		.version(false)
 		.option("host", {
 			type: "string",
-			describe: "Host interface to bind to.",
+			describe: "Proxy host. Login callback always listens on loopback.",
 		})
 		.option("port", {
 			type: "number",
-			describe: "Port to listen on. Default: 10531",
+			describe: "Proxy port. Default: 10531.",
 		})
 		.option("models", {
 			type: "string",
@@ -164,8 +170,6 @@ export const toServerOptions = (args: CliArgs) => ({
 })
 
 export const toLoginOptions = (args: CliArgs) => ({
-	host: args.host,
-	port: args.port,
 	clientId: args.clientId,
 	tokenUrl: args.tokenUrl,
 	authFilePath: args.authFilePath,
@@ -265,6 +269,54 @@ const runUpdateCheck = () =>
 		onWarning: defaultUpdateCheckWarning,
 	})
 
+const createLoginCancellation = (): LoginCancellation => {
+	const abortController = new AbortController()
+	let signalName: NodeJS.Signals | undefined
+	const abort = (receivedSignal: NodeJS.Signals) => {
+		signalName = receivedSignal
+		abortController.abort()
+	}
+	const onSigint = () => abort("SIGINT")
+	const onSigterm = () => abort("SIGTERM")
+
+	process.once("SIGINT", onSigint)
+	process.once("SIGTERM", onSigterm)
+
+	return {
+		signal: abortController.signal,
+		exitCode: () => (signalName === "SIGTERM" ? 143 : 130),
+		dispose: () => {
+			process.off("SIGINT", onSigint)
+			process.off("SIGTERM", onSigterm)
+		},
+	}
+}
+
+const isLoginCancelledError = (error: unknown): boolean =>
+	error instanceof Error && error.message === "OpenAI OAuth login cancelled."
+
+const runLoginWithCancellation = async (
+	options: ReturnType<typeof toLoginOptions>,
+): Promise<boolean> => {
+	const cancellation = createLoginCancellation()
+	try {
+		await runOpenAIOAuthLogin({
+			...options,
+			signal: cancellation.signal,
+		})
+		return true
+	} catch (error) {
+		if (cancellation.signal.aborted && isLoginCancelledError(error)) {
+			process.exitCode = cancellation.exitCode()
+			console.error("\nLogin cancelled.")
+			return false
+		}
+		throw error
+	} finally {
+		cancellation.dispose()
+	}
+}
+
 export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 	if (isHelpFlag(argv)) {
 		console.log(toHelpMessage())
@@ -307,7 +359,7 @@ export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 			}
 		}
 
-		await runOpenAIOAuthLogin(loginOptions)
+		await runLoginWithCancellation(loginOptions)
 		return
 	}
 
@@ -328,7 +380,10 @@ export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 			return
 		}
 
-		await runOpenAIOAuthLogin(toLoginOptions(args))
+		const didLogin = await runLoginWithCancellation(toLoginOptions(args))
+		if (!didLogin) {
+			return
+		}
 	}
 
 	const auth = openaiCredentials(options)
