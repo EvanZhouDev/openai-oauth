@@ -10,6 +10,7 @@ import * as z from "zod"
 import { startOpenAIOAuthServer } from "../src/index.js"
 
 const liveTest = process.env.LIVE_CODEX_E2E === "1" ? test : test.skip
+const liveModel = "gpt-5.4-mini"
 
 describe("openai oauth server live e2e", () => {
 	let stop: (() => Promise<void>) | undefined
@@ -49,7 +50,7 @@ describe("openai oauth server live e2e", () => {
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
-					model: "gpt-5.2",
+					model: liveModel,
 					stream: false,
 					input: [
 						{
@@ -73,7 +74,7 @@ describe("openai oauth server live e2e", () => {
 			})
 
 			const smoke = await generateText({
-				model: openai.responses("gpt-5.2"),
+				model: openai.responses(liveModel),
 				prompt: "Reply with exactly: server-smoke-ok",
 			})
 			expect(smoke.text.trim()).toBe("server-smoke-ok")
@@ -87,7 +88,7 @@ describe("openai oauth server live e2e", () => {
 
 			const streamedToolEvents: string[] = []
 			const toolStream = streamText({
-				model: openai.chat("gpt-5.2"),
+				model: openai.chat(liveModel),
 				messages: [
 					{
 						role: "user",
@@ -111,7 +112,7 @@ describe("openai oauth server live e2e", () => {
 			expect(streamedToolEvents).toContain("tool-call")
 
 			const agent = new ToolLoopAgent({
-				model: openai.chat("gpt-5.2"),
+				model: openai.chat(liveModel),
 				tools: {
 					weather: tool({
 						description: "Get weather",
