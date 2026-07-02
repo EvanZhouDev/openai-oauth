@@ -62,7 +62,6 @@ export type OpenAIOAuthRequestOptions = {
 	scope?: string
 	state?: string
 	codeVerifier?: string
-	originator?: string
 	simplifiedFlow?: boolean
 	idTokenAddOrganizations?: boolean
 	extraParams?: Record<string, string | number | boolean | undefined>
@@ -370,13 +369,8 @@ export const createOpenAIOAuthRequest = async (
 		authorizationUrl.searchParams.set("codex_cli_simplified_flow", "true")
 	}
 
-	authorizationUrl.searchParams.set(
-		"originator",
-		options.originator ?? "openai-oauth",
-	)
-
 	for (const [key, value] of Object.entries(options.extraParams ?? {})) {
-		if (value !== undefined) {
+		if (value !== undefined && key !== "originator") {
 			authorizationUrl.searchParams.set(key, String(value))
 		}
 	}

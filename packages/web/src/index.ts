@@ -545,7 +545,6 @@ export const startLogin = async (
 		scope: options.scope,
 		state: options.state,
 		codeVerifier: options.codeVerifier,
-		originator: options.originator,
 		simplifiedFlow: options.simplifiedFlow,
 		idTokenAddOrganizations: options.idTokenAddOrganizations,
 		extraParams: options.extraParams,

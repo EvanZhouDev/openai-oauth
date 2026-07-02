@@ -52,6 +52,9 @@ describe("auth helpers", () => {
 			state: "state-1",
 			codeVerifier: "verifier-1",
 			clientId: "client-1",
+			extraParams: {
+				originator: "ignored",
+			},
 		})
 		const url = new URL(request.authorizationUrl)
 
@@ -63,12 +66,16 @@ describe("auth helpers", () => {
 		expect(url.searchParams.get("redirect_uri")).toBe(
 			"http://127.0.0.1:1234/auth/callback",
 		)
+		expect(url.searchParams.get("scope")).toBe(
+			"openid profile email offline_access",
+		)
 		expect(url.searchParams.get("code_challenge")).toBe(
 			createHash("sha256").update("verifier-1").digest("base64url"),
 		)
 		expect(url.searchParams.get("code_challenge_method")).toBe("S256")
 		expect(url.searchParams.get("codex_cli_simplified_flow")).toBe("true")
 		expect(url.searchParams.get("id_token_add_organizations")).toBe("true")
+		expect(url.searchParams.has("originator")).toBe(false)
 	})
 
 	test("exchangeOpenAIOAuthCode sends authorization_code token request", async () => {
