@@ -18,6 +18,7 @@
 >  <source srcset="/assets/sign-in-with-chatgpt-button.webp" type="image/webp">
 >  <img src="/assets/sign-in-with-chatgpt-button.png" alt="Sign in with ChatGPT" width="320">
 > </picture>
+> 
 > And much more:
 > - [**Credential Sources**](#sdk-overview): Get credentials from user sign-in, locally, or somewhere else
 > - [**Client Adapters**](#client-adapters): Use those credentials with Vercel AI SDK, OpenAI Client, or any OpenAI-compatible client
