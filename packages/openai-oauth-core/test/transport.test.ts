@@ -95,6 +95,85 @@ describe("normalizeCodexResponsesBody", () => {
 
 		expect(normalized.store).toBe(false)
 	})
+
+	test("strips params the Codex backend rejects", () => {
+		const normalized = normalizeCodexResponsesBody({
+			model: "gpt-5.3-codex-spark",
+			user: "user-123",
+			temperature: 0.2,
+			top_p: 0.9,
+		})
+
+		expect(normalized).not.toHaveProperty("user")
+		expect(normalized).not.toHaveProperty("temperature")
+		expect(normalized).not.toHaveProperty("top_p")
+	})
+
+	test("renames web_search_preview to web_search with external_web_access", () => {
+		const normalized = normalizeCodexResponsesBody({
+			model: "gpt-5.4",
+			tools: [
+				{ type: "web_search_preview" },
+				{ type: "function", name: "other", parameters: {} },
+			],
+		})
+
+		expect(normalized.tools).toEqual([
+			{ type: "web_search", external_web_access: true },
+			{ type: "function", name: "other", parameters: {} },
+		])
+	})
+
+	test("resets tool_choice to auto when renaming web_search_preview", () => {
+		const normalized = normalizeCodexResponsesBody({
+			model: "gpt-5.4",
+			tools: [{ type: "web_search_preview" }],
+			tool_choice: { type: "function", name: "ignored" },
+		})
+
+		expect(normalized.tool_choice).toBe("auto")
+	})
+
+	test("leaves tool_choice 'none' intact even when renaming", () => {
+		const normalized = normalizeCodexResponsesBody({
+			model: "gpt-5.4",
+			tools: [{ type: "web_search_preview" }],
+			tool_choice: "none",
+		})
+
+		expect(normalized.tool_choice).toBe("none")
+	})
+
+	test("does not touch tool_choice when no web_search_preview tool is present", () => {
+		const toolChoice = { type: "function", name: "my_tool" }
+		const normalized = normalizeCodexResponsesBody({
+			model: "gpt-5.4",
+			tools: [{ type: "function", name: "my_tool", parameters: {} }],
+			tool_choice: toolChoice,
+		})
+
+		expect(normalized.tool_choice).toEqual(toolChoice)
+	})
+
+	test("preserves other web search config keys when renaming", () => {
+		const normalized = normalizeCodexResponsesBody({
+			model: "gpt-5.4",
+			tools: [
+				{
+					type: "web_search_preview",
+					search_context_size: "medium",
+				},
+			],
+		})
+
+		expect(normalized.tools).toEqual([
+			{
+				type: "web_search",
+				search_context_size: "medium",
+				external_web_access: true,
+			},
+		])
+	})
 })
 
 describe("createCodexOAuthFetch", () => {
