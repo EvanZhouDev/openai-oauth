@@ -378,6 +378,7 @@ export function LoginPanel() {
 
 						<section className="stepOutput signInOutput">
 							<h2 className="outputHeading">Try it out</h2>
+							<p className="planNote">Works across free and paid plans.</p>
 							<SignInWithChatGPT
 								hideAttribution
 								onStateChange={handleAuthStateChange}

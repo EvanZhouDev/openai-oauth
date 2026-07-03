@@ -323,11 +323,8 @@ describe("openai oauth cli", () => {
 			const callbackHtml = await callbackResponse.text()
 			expect(callbackResponse.ok).toBe(true)
 			expect(callbackHtml).toContain("<title>OpenAI OAuth Sign-In</title>")
-			expect(callbackHtml).toContain("<span>OpenAI OAuth</span>")
+			expect(callbackHtml).toContain('class="wordmark"')
 			expect(callbackHtml).toContain('<h1 id="title">Sign-in complete</h1>')
-			expect(callbackHtml).toContain(
-				"https://github.com/EvanZhouDev/openai-oauth",
-			)
 
 			const saved = await loginPromise
 			expect(saved.path).toBe(authFilePath)

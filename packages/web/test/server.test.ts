@@ -2,8 +2,11 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import {
 	completeLogin,
 	exchangeCode,
+	isBrowserExtensionInstalled,
 	openaiAuthHeaders,
+	openaiOAuthBrowserExtensionId,
 	refreshSession,
+	startLogin,
 } from "../src/index.js"
 import { openaiCredentials } from "../src/server.js"
 
@@ -26,7 +29,148 @@ afterEach(() => {
 	vi.unstubAllGlobals()
 })
 
+const decodeRelayState = (state: string): Record<string, unknown> =>
+	JSON.parse(Buffer.from(state.slice("oo2_".length), "base64url").toString())
+
 describe("@openai-oauth/web", () => {
+	test("detects the browser extension through the installed marker", async () => {
+		const fetchImpl = vi.fn(async () =>
+			Response.json({ installed: true, name: "sign-in-with-chatgpt" }),
+		)
+
+		await expect(
+			isBrowserExtensionInstalled({ fetch: fetchImpl, timeoutMs: 0 }),
+		).resolves.toBe(true)
+
+		expect(fetchImpl).toHaveBeenCalledWith(
+			`chrome-extension://${openaiOAuthBrowserExtensionId}/src/installed.json`,
+			expect.objectContaining({
+				cache: "no-store",
+			}),
+		)
+	})
+
+	test("treats missing or invalid browser extension markers as not installed", async () => {
+		const fetchImpl = vi.fn(async () => new Response(null, { status: 404 }))
+
+		await expect(
+			isBrowserExtensionInstalled({
+				extensionId: "not-a-chrome-extension-id",
+				fetch: fetchImpl,
+				timeoutMs: 0,
+			}),
+		).resolves.toBe(false)
+		expect(fetchImpl).not.toHaveBeenCalled()
+
+		await expect(
+			isBrowserExtensionInstalled({ fetch: fetchImpl, timeoutMs: 0 }),
+		).resolves.toBe(false)
+	})
+
+	test("startLogin defaults to the browser-extension relay callback", async () => {
+		const assign = vi.fn()
+		const setItem = vi.fn()
+		vi.stubGlobal("window", {
+			location: {
+				href: "https://app.example.test/dashboard?tab=ai#top",
+				origin: "https://app.example.test",
+				pathname: "/dashboard",
+				search: "?tab=ai",
+				hash: "#top",
+				assign,
+			},
+			sessionStorage: {
+				getItem: vi.fn(() => null),
+				setItem,
+				removeItem: vi.fn(),
+			},
+		} as unknown as Window)
+
+		const request = await startLogin({ codeVerifier: "verifier-1" })
+		const url = new URL(request.authorizationUrl)
+		const state = url.searchParams.get("state")
+		expect(state).toBeTypeOf("string")
+
+		expect(assign).toHaveBeenCalledWith(request.authorizationUrl)
+		expect(url.searchParams.get("redirect_uri")).toBe(
+			"http://localhost:1455/auth/callback",
+		)
+		expect(state?.startsWith("oo2_")).toBe(true)
+		expect(decodeRelayState(state ?? "")).toMatchObject({
+			type: "openai-oauth-callback",
+			version: 1,
+			callbackUrl: "https://app.example.test/dashboard?tab=ai#top",
+		})
+		expect(JSON.parse(setItem.mock.calls[0]?.[1] ?? "{}")).toMatchObject({
+			state,
+			redirectUri: "http://localhost:1455/auth/callback",
+			returnTo: "/dashboard?tab=ai#top",
+		})
+	})
+
+	test("startLogin preserves caller state inside browser-extension relay state", async () => {
+		vi.stubGlobal("window", {
+			location: {
+				href: "https://app.example.test/",
+				origin: "https://app.example.test",
+				pathname: "/",
+				search: "",
+				hash: "",
+				assign: vi.fn(),
+			},
+			sessionStorage: {
+				getItem: vi.fn(() => null),
+				setItem: vi.fn(),
+				removeItem: vi.fn(),
+			},
+		} as unknown as Window)
+
+		const request = await startLogin({
+			codeVerifier: "verifier-1",
+			state: "caller-state",
+		})
+		const url = new URL(request.authorizationUrl)
+		const state = url.searchParams.get("state") ?? ""
+
+		expect(state.startsWith("oo2_")).toBe(true)
+		expect(decodeRelayState(state)).toMatchObject({
+			appState: "caller-state",
+			callbackUrl: "https://app.example.test/",
+		})
+	})
+
+	test("startLogin can still use the current origin callback", async () => {
+		const assign = vi.fn()
+		vi.stubGlobal("window", {
+			location: {
+				href: "https://app.example.test/",
+				origin: "https://app.example.test",
+				pathname: "/",
+				search: "",
+				hash: "",
+				assign,
+			},
+			sessionStorage: {
+				getItem: vi.fn(() => null),
+				setItem: vi.fn(),
+				removeItem: vi.fn(),
+			},
+		} as unknown as Window)
+
+		const request = await startLogin({
+			callbackMode: "current-origin",
+			codeVerifier: "verifier-1",
+			state: "state-1",
+		})
+		const url = new URL(request.authorizationUrl)
+
+		expect(assign).toHaveBeenCalledWith(request.authorizationUrl)
+		expect(url.searchParams.get("redirect_uri")).toBe(
+			"https://app.example.test/auth/callback",
+		)
+		expect(url.searchParams.get("state")).toBe("state-1")
+	})
+
 	test("completeLogin keeps an existing session on stale callback reloads", async () => {
 		const session = {
 			accessToken: "access-token",
@@ -60,6 +204,46 @@ describe("@openai-oauth/web", () => {
 		await expect(completeLogin({ sessionStore })).resolves.toEqual(session)
 		expect(sessionStore.set).not.toHaveBeenCalled()
 		expect(replaceState).toHaveBeenCalledWith(null, "", "/")
+	})
+
+	test("completeLogin clears pending browser-extension cancellation callbacks", async () => {
+		const pending = {
+			state: "oo2_state",
+			codeVerifier: "verifier-1",
+			redirectUri: "http://localhost:1455/auth/callback",
+			returnTo: "/dashboard?tab=ai#top",
+		}
+		const replaceState = vi.fn()
+		const removeItem = vi.fn()
+		const sessionStore = {
+			get: vi.fn(async () => null),
+			set: vi.fn(async () => {}),
+			clear: vi.fn(async () => {}),
+		}
+		vi.stubGlobal("window", {
+			location: {
+				href: "https://app.example.test/dashboard?error=access_denied&error_description=Sign-in%20cancelled&state=oo2_state",
+				origin: "https://app.example.test",
+				pathname: "/dashboard",
+				search:
+					"?error=access_denied&error_description=Sign-in%20cancelled&state=oo2_state",
+				hash: "",
+			},
+			history: {
+				replaceState,
+			},
+			sessionStorage: {
+				getItem: vi.fn(() => JSON.stringify(pending)),
+				setItem: vi.fn(),
+				removeItem,
+			},
+		} as unknown as Window)
+
+		await expect(completeLogin({ sessionStore })).resolves.toBeNull()
+		expect(removeItem).toHaveBeenCalledWith("openai-oauth:pending-login")
+		expect(replaceState).toHaveBeenCalledWith(null, "", "/dashboard?tab=ai#top")
+		expect(sessionStore.get).not.toHaveBeenCalled()
+		expect(sessionStore.set).not.toHaveBeenCalled()
 	})
 
 	test("openaiAuthHeaders returns plain object headers and refreshes expiring stored browser sessions", async () => {

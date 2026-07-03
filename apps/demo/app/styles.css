@@ -313,6 +313,11 @@ h2 {
 	line-height: 1.03;
 }
 
+.stepHeading h1,
+.stepHeading h2 {
+	font-size: clamp(25px, 2.35vw, 35px);
+}
+
 .stepHeading p {
 	color: var(--muted);
 	font-size: 15px;
@@ -415,7 +420,7 @@ code {
 }
 
 .signInOutput {
-	gap: 14px;
+	gap: 0;
 	text-align: center;
 }
 
@@ -423,7 +428,15 @@ code {
 	font-size: clamp(21px, 1.8vw, 26px);
 	font-variation-settings: "wght" 500;
 	font-weight: 500;
-	margin-bottom: 12px;
+	margin-bottom: 2px;
+}
+
+.planNote {
+	color: var(--muted);
+	font-size: 12px;
+	line-height: 1.35;
+	margin: 5px 0 14px;
+	text-align: center;
 }
 
 .safetyNote {
@@ -431,6 +444,7 @@ code {
 	display: block;
 	font-size: 13px;
 	line-height: 1.4;
+	margin-top: 14px;
 	max-width: 274px;
 	text-align: center;
 }
@@ -545,7 +559,7 @@ code {
 	align-items: center;
 	display: flex;
 	flex-direction: column;
-	margin: 128px auto 0;
+	margin: 104px auto 0;
 	text-align: center;
 	width: 100%;
 }
@@ -578,6 +592,197 @@ code {
 
 .docsButton:hover {
 	background: #2b2b2b;
+}
+
+.installShell {
+	align-items: center;
+	display: flex;
+	justify-content: center;
+	margin: 0 auto;
+	max-width: 720px;
+	min-height: 100vh;
+	padding: 36px 24px;
+}
+
+.installStack {
+	align-items: center;
+	display: flex;
+	flex-direction: column;
+	text-align: center;
+	width: min(100%, 430px);
+}
+
+.installBrand {
+	align-items: center;
+	display: inline-flex;
+	gap: 7px;
+	margin-bottom: 28px;
+}
+
+.installLogo {
+	display: block;
+	height: 16px;
+	transform: translateY(-1px);
+	width: 16px;
+}
+
+.installWordmark {
+	display: block;
+	height: 15px;
+	width: auto;
+}
+
+.installCopy h1 {
+	font-size: clamp(25px, 3.1vw, 31px);
+	font-variation-settings: "wght" 540;
+	font-weight: 540;
+	line-height: 1.1;
+	white-space: nowrap;
+}
+
+.installCopy p {
+	color: var(--text);
+	font-size: 18px;
+	line-height: 1.45;
+	margin: 18px auto 0;
+	max-width: 330px;
+}
+
+.installTrustList {
+	align-items: flex-start;
+	display: grid;
+	gap: 14px;
+	list-style: none;
+	margin: 34px 0 0;
+	padding: 0;
+	text-align: left;
+	width: fit-content;
+}
+
+.installTrustList li {
+	align-items: center;
+	color: var(--muted);
+	display: flex;
+	font-size: 18px;
+	gap: 14px;
+	line-height: 1.4;
+}
+
+.installTrustList svg {
+	color: var(--muted);
+	flex: 0 0 auto;
+	height: 17px;
+	width: 17px;
+}
+
+.installTrustList a {
+	color: inherit;
+	text-decoration: underline;
+	text-decoration-color: var(--border);
+	text-underline-offset: 3px;
+}
+
+.installTrustList a:hover {
+	text-decoration-color: var(--text);
+}
+
+.installTrustList a span {
+	display: inline-block;
+	font-size: 12px;
+	margin-left: 3px;
+	transform: translateY(-1px);
+}
+
+.installPrimaryButton {
+	align-items: center;
+	background: var(--text);
+	border-radius: 999px;
+	color: var(--background);
+	display: inline-flex;
+	font-size: 15px;
+	font-weight: 500;
+	justify-content: center;
+	margin-top: 38px;
+	min-height: 50px;
+	padding: 13px 24px;
+}
+
+.installPrimaryButton:visited {
+	color: var(--background);
+}
+
+.installPrimaryButton:hover {
+	background: #2b2b2b;
+}
+
+.localCompleteCopy p {
+	max-width: 360px;
+}
+
+.authScreenFooter {
+	align-items: center;
+	bottom: 34px;
+	color: var(--muted);
+	display: flex;
+	flex-direction: column;
+	font-size: 12px;
+	gap: 7px;
+	left: 24px;
+	line-height: 1.25;
+	position: fixed;
+	right: 24px;
+	text-align: center;
+}
+
+.authScreenFooter a {
+	color: inherit;
+	text-decoration: none;
+}
+
+.authScreenFooter a:hover {
+	color: var(--text);
+}
+
+.authScreenFooter div {
+	align-items: center;
+	display: flex;
+	gap: 8px;
+	justify-content: center;
+}
+
+.completeActions {
+	align-items: center;
+	display: flex;
+	gap: 12px;
+	justify-content: center;
+	margin-top: 38px;
+	width: min(100%, 322px);
+}
+
+.completeActions .installPrimaryButton {
+	flex: 1 1 0;
+	margin-top: 0;
+	min-width: 0;
+}
+
+.completeSecondaryButton {
+	align-items: center;
+	background: #ffffff;
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	color: var(--text);
+	display: inline-flex;
+	flex: 1 1 0;
+	font-size: 15px;
+	font-weight: 500;
+	justify-content: center;
+	min-height: 50px;
+	min-width: 0;
+	padding: 13px 24px;
+}
+
+.completeSecondaryButton:hover {
+	background: #f9f9f9;
 }
 
 .srOnly {
@@ -650,6 +855,14 @@ code {
 	h1,
 	h2 {
 		font-size: 30px;
+	}
+
+	.installShell {
+		padding: 28px 18px;
+	}
+
+	.installBrand {
+		margin-bottom: 40px;
 	}
 }
 

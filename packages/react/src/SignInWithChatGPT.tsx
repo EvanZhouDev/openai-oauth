@@ -5,6 +5,7 @@ import type {
 	MouseEventHandler,
 } from "react"
 import { useState } from "react"
+import { SignInWithChatGPTExtensionScreen } from "./SignInWithChatGPTExtensionScreen.js"
 import {
 	type UseSignInWithChatGPTOptions,
 	useSignInWithChatGPT,
@@ -15,6 +16,7 @@ export type SignInWithChatGPTProps = Omit<
 	"onError"
 > &
 	UseSignInWithChatGPTOptions & {
+		chromeWebStoreUrl?: string
 		loadingLabel?: string
 		redirectingLabel?: string
 		signedInLabel?: string
@@ -89,6 +91,10 @@ const OpenAILogo = () => (
 
 export const SignInWithChatGPT = ({
 	callbackPath,
+	callbackMode,
+	browserExtensionDetectionTimeoutMs,
+	browserExtensionId,
+	chromeWebStoreUrl,
 	clientId,
 	codeVerifier,
 	sessionStore,
@@ -122,6 +128,9 @@ export const SignInWithChatGPT = ({
 	const [isHovered, setIsHovered] = useState(false)
 	const login = useSignInWithChatGPT({
 		callbackPath,
+		callbackMode,
+		browserExtensionDetectionTimeoutMs,
+		browserExtensionId,
 		clientId,
 		codeVerifier,
 		sessionStore,
@@ -140,6 +149,7 @@ export const SignInWithChatGPT = ({
 	})
 	const isBusy = login.status === "starting" || login.status === "redirecting"
 	const isSignedIn = login.status === "signed-in"
+	const needsExtension = login.status === "needs-extension"
 
 	const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
 		onClick?.(event)
@@ -166,6 +176,16 @@ export const SignInWithChatGPT = ({
 	if (hideWhenSignedIn && isSignedIn) {
 		return null
 	}
+
+	const extensionScreen = needsExtension ? (
+		<SignInWithChatGPTExtensionScreen
+			browserExtensionDetectionTimeoutMs={browserExtensionDetectionTimeoutMs}
+			browserExtensionId={browserExtensionId}
+			chromeWebStoreUrl={chromeWebStoreUrl}
+			onCancel={login.reset}
+			onContinue={login.login}
+		/>
+	) : null
 
 	const button = (
 		<button
@@ -195,7 +215,12 @@ export const SignInWithChatGPT = ({
 	)
 
 	if (hideAttribution) {
-		return button
+		return (
+			<>
+				{button}
+				{extensionScreen}
+			</>
+		)
 	}
 
 	return (
@@ -209,6 +234,7 @@ export const SignInWithChatGPT = ({
 			>
 				Powered by OpenAI OAuth
 			</a>
+			{extensionScreen}
 		</span>
 	)
 }

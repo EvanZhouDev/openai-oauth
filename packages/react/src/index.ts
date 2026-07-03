@@ -11,6 +11,10 @@ export {
 	SignInWithChatGPT,
 	type SignInWithChatGPTProps,
 } from "./SignInWithChatGPT.js"
+export {
+	SignInWithChatGPTExtensionScreen,
+	type SignInWithChatGPTExtensionScreenProps,
+} from "./SignInWithChatGPTExtensionScreen.js"
 export type {
 	OpenAIOAuthSession,
 	SessionStore,

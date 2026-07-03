@@ -1,0 +1,11 @@
+{
+	"name": "@openai-oauth/browser-extension",
+	"version": "2.0.0-beta.1",
+	"private": true,
+	"description": "Browser helper for OpenAI OAuth web sign-in.",
+	"scripts": {
+		"build": "rm -rf dist && mkdir -p dist/src/assets && cp manifest.json dist/manifest.json && cp src/background.js src/confirm.html src/confirm.js src/installed.json dist/src/ && cp src/assets/* dist/src/assets/",
+		"typecheck": "echo 'No typecheck for browser-extension'",
+		"test": "echo 'No tests for browser-extension'"
+	}
+}

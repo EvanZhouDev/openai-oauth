@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>OpenAI OAuth</title>
+		<style>
+			:root {
+				color-scheme: light;
+				font-family:
+					ui-sans-serif,
+					system-ui,
+					-apple-system,
+					BlinkMacSystemFont,
+					"Segoe UI",
+					sans-serif;
+				background: #ffffff;
+				color: #111111;
+			}
+
+			body {
+				display: grid;
+				margin: 0;
+				min-height: 100vh;
+				place-items: center;
+			}
+
+			main {
+				text-align: center;
+				width: min(430px, calc(100vw - 48px));
+			}
+
+			.brand {
+				align-items: center;
+				display: inline-flex;
+				gap: 7px;
+				margin-bottom: 28px;
+			}
+
+			.logo {
+				display: block;
+				height: 16px;
+				transform: translateY(-1px);
+				width: 16px;
+			}
+
+			.wordmark {
+				display: block;
+				height: 15px;
+				width: auto;
+			}
+
+			h1 {
+				font-size: clamp(25px, 3.1vw, 31px);
+				font-weight: 540;
+				letter-spacing: 0;
+				line-height: 1.1;
+				margin: 0;
+			}
+
+			p {
+				color: #111111;
+				font-size: 18px;
+				line-height: 1.45;
+				margin: 18px auto 0;
+				max-width: 330px;
+			}
+
+			.actions {
+				align-items: center;
+				display: flex;
+				gap: 12px;
+				justify-content: center;
+				margin-left: auto;
+				margin-right: auto;
+				margin-top: 38px;
+				width: min(100%, 322px);
+			}
+
+			button {
+				align-items: center;
+				border-radius: 999px;
+				cursor: pointer;
+				display: inline-flex;
+				flex: 1 1 0;
+				font: inherit;
+				font-size: 15px;
+				font-weight: 500;
+				justify-content: center;
+				min-height: 50px;
+				min-width: 0;
+				padding: 13px 24px;
+			}
+
+			.primary {
+				background: #111111;
+				border: 1px solid #111111;
+				color: #ffffff;
+			}
+
+			.secondary {
+				background: #ffffff;
+				border: 1px solid #d9d9d9;
+				color: #111111;
+			}
+
+			.primary:hover {
+				background: #2b2b2b;
+				border-color: #2b2b2b;
+			}
+
+			.secondary:hover {
+				background: #f9f9f9;
+			}
+
+			button:disabled {
+				cursor: default;
+				opacity: 0.5;
+			}
+
+			.error {
+				color: #c33;
+			}
+
+			footer {
+				align-items: center;
+				bottom: 34px;
+				color: #6f6f6f;
+				display: flex;
+				flex-direction: column;
+				font-size: 12px;
+				gap: 7px;
+				left: 24px;
+				line-height: 1.25;
+				position: fixed;
+				right: 24px;
+				text-align: center;
+			}
+
+			footer a {
+				color: inherit;
+				text-decoration: none;
+			}
+
+			footer a:hover {
+				color: #111111;
+			}
+
+			.footer-links {
+				align-items: center;
+				display: flex;
+				gap: 8px;
+				justify-content: center;
+			}
+
+			@media (max-width: 420px) {
+				.actions {
+					align-items: stretch;
+					flex-direction: column;
+				}
+			}
+		</style>
+	</head>
+	<body>
+		<main>
+			<div class="brand" aria-label="OpenAI OAuth">
+				<img alt="" class="logo" src="./assets/openai-oauth-logo.svg" />
+				<img alt="OpenAI OAuth" class="wordmark" src="./assets/openai-oauth-wordmark.svg" />
+			</div>
+			<h1 id="title">Signed in to ChatGPT</h1>
+			<p id="message">Continue to this app with ChatGPT.</p>
+			<div class="actions">
+				<button class="primary" id="continue" type="button" disabled>
+					Continue
+				</button>
+				<button class="secondary" id="cancel" type="button" disabled>
+					Cancel
+				</button>
+			</div>
+		</main>
+		<footer>
+			<a href="https://github.com/evanzhoudev/openai-oauth">
+				Learn more about OpenAI OAuth
+			</a>
+			<div class="footer-links">
+				<a href="https://github.com/evanzhoudev/openai-oauth">GitHub</a>
+				<span aria-hidden="true">⋅</span>
+				<a href="https://github.com/evanzhoudev/openai-oauth#legal">Legal</a>
+			</div>
+		</footer>
+		<script src="./confirm.js" type="module"></script>
+	</body>
+</html>

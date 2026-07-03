@@ -29,6 +29,11 @@ export type SignInWithChatGPTState =
 			error: null
 	  }
 	| {
+			status: "needs-extension"
+			session: null
+			error: null
+	  }
+	| {
 			status: "redirecting"
 			session: null
 			error: null

@@ -1,0 +1,42 @@
+{
+	"manifest_version": 3,
+	"name": "Sign in with ChatGPT",
+	"short_name": "ChatGPT Auth",
+	"version": "0.0.1",
+	"description": "Securely sign in with ChatGPT on apps powered by OpenAI OAuth.",
+	"homepage_url": "https://github.com/EvanZhouDev/openai-oauth",
+	"incognito": "not_allowed",
+	"minimum_chrome_version": "102",
+	"key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwcjJ0g1yH49xyXGGp55/2s9BXUiqYRxQHOZuQvAiQ8faztFLp3Gtd5Cs4Z6rks5FB0Jr311NLJUx9YSe6+7g7EE+3RRkP2viKEKM/sV5ZvwVz1Ivt8Nc3Lido6DDlnsiHHkfOlhkictPfyJXVsFCOHhe+/E7gNLuOGHvzz0XWz6ICOOAYv/7cYdNgujCNvQr66J03TzIJzj7z8Fdb54zCsElpCAdGxo1SdUAF3Nu2SEn/nGCtSRhOhUpXKwZMxc+BN2gNfc+zEtcvRN52I1psOChENb1kaGhZt87TyrJK3KIHjfp0tU7uHGEcOiUnB/ORHgSKU1ZGN0MP8R4WhrSnwIDAQAB",
+	"icons": {
+		"16": "src/assets/icon-16.png",
+		"32": "src/assets/icon-32.png",
+		"48": "src/assets/icon-48.png",
+		"128": "src/assets/icon-128.png"
+	},
+	"permissions": ["storage", "webNavigation"],
+	"host_permissions": ["http://localhost:1455/*"],
+	"web_accessible_resources": [
+		{
+			"resources": ["src/installed.json"],
+			"matches": ["http://localhost/*", "http://127.0.0.1/*", "https://*/*"]
+		}
+	],
+	"externally_connectable": {
+		"ids": [],
+		"accepts_tls_channel_id": false
+	},
+	"background": {
+		"service_worker": "src/background.js",
+		"type": "module"
+	},
+	"action": {
+		"default_title": "Sign in with ChatGPT",
+		"default_icon": {
+			"16": "src/assets/icon-16.png",
+			"32": "src/assets/icon-32.png",
+			"48": "src/assets/icon-48.png",
+			"128": "src/assets/icon-128.png"
+		}
+	}
+}

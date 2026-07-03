@@ -26,7 +26,7 @@ export default function Page() {
 
 The prebuilt button includes a small "Powered by OpenAI OAuth" link by default. Pass `hideAttribution` to render only the button with no attribution link or reserved space.
 
-No app route is required for login. The hook creates the authorization URL, stores PKCE/state in `sessionStorage`, exchanges the callback code directly, and stores the resulting session in the browser session store.
+The prebuilt component shows the Chrome extension screen inline when hosted web apps need it. The hook itself only exposes auth state, so custom UI users can render their own screen or reuse `SignInWithChatGPTExtensionScreen`.
 
 Browser model calls must go through your own app route because ChatGPT does not allow direct browser CORS requests. Send the signed-in session to that route with `openaiAuthHeaders()`:
 
@@ -84,13 +84,20 @@ Useful props:
 For custom UI, use the hook:
 
 ```tsx
-import { useSignInWithChatGPT } from "@openai-oauth/react";
+import {
+	SignInWithChatGPTExtensionScreen,
+	useSignInWithChatGPT,
+} from "@openai-oauth/react";
 
 function CustomLogin() {
 	const login = useSignInWithChatGPT();
 
 	if (login.status === "signed-in") {
 		return <button onClick={() => void login.logout()}>Disconnect</button>;
+	}
+
+	if (login.status === "needs-extension") {
+		return <SignInWithChatGPTExtensionScreen onContinue={login.login} />;
 	}
 
 	return (
@@ -114,7 +121,7 @@ type UseSignInWithChatGPTReturn = SignInWithChatGPTState & {
 State statuses:
 
 ```ts
-"checking" | "signed-out" | "starting" | "redirecting" | "signed-in" | "error"
+"checking" | "signed-out" | "starting" | "needs-extension" | "redirecting" | "signed-in" | "error"
 ```
 
 The default browser session store persists encrypted sessions in IndexedDB. Apps can provide their own store:
@@ -134,6 +141,7 @@ type SessionStore = {
 Exports:
 
 - `SignInWithChatGPT`
+- `SignInWithChatGPTExtensionScreen`
 - `useSignInWithChatGPT`
 - `openaiAuthHeaders`
 - `getSession`

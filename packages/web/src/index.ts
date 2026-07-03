@@ -62,11 +62,21 @@ export type OpenAIAuthHeadersOptions = BrowserSessionOptions & {
 
 export type OpenAIAuthHeaders = Record<string, string>
 
+export type OpenAIOAuthCallbackMode = "browser-extension" | "current-origin"
+
+export type BrowserExtensionDetectionOptions = {
+	extensionId?: string
+	installedPath?: string
+	timeoutMs?: number
+	fetch?: FetchFunction
+}
+
 export type StartLoginOptions = Omit<
 	OpenAIOAuthRequestOptions,
 	"redirectUri"
 > & {
 	callbackPath?: string
+	callbackMode?: OpenAIOAuthCallbackMode
 	redirectUri?: string
 	returnTo?: string
 	openMode?: "redirect" | "popup"
@@ -113,6 +123,10 @@ const defaultStoreSettings: StoreSettings = {
 }
 
 const pendingLoginKey = "openai-oauth:pending-login"
+const browserExtensionStatePrefix = "oo2_"
+const browserExtensionRedirectUri = "http://localhost:1455/auth/callback"
+export const openaiOAuthBrowserExtensionId = "jnhminmogcmdifklncbeahimmjpgadaa"
+export const openaiOAuthBrowserExtensionInstalledPath = "src/installed.json"
 const refreshExpiryMarginMs = 5 * 60 * 1000
 const refreshIntervalMs = 55 * 60 * 1000
 
@@ -133,6 +147,69 @@ const assertBrowserWindow = (): Window => {
 		throw new Error("OpenAI OAuth browser login requires window.")
 	}
 	return window
+}
+
+const isValidBrowserExtensionId = (extensionId: string): boolean =>
+	/^[a-p]{32}$/.test(extensionId)
+
+const getBrowserExtensionInstalledUrl = (
+	extensionId: string,
+	installedPath: string,
+): string => {
+	const normalizedPath = installedPath.replace(/^\/+/, "")
+	return new URL(
+		normalizedPath,
+		`chrome-extension://${extensionId}/`,
+	).toString()
+}
+
+export const isBrowserExtensionInstalled = async (
+	options: BrowserExtensionDetectionOptions = {},
+): Promise<boolean> => {
+	const extensionId = options.extensionId ?? openaiOAuthBrowserExtensionId
+	if (!isValidBrowserExtensionId(extensionId)) {
+		return false
+	}
+
+	const fetchImpl = options.fetch ?? globalThis.fetch
+	if (!fetchImpl) {
+		return false
+	}
+
+	const timeoutMs = options.timeoutMs ?? 750
+	const controller =
+		typeof AbortController === "undefined" ? null : new AbortController()
+	const timeout =
+		timeoutMs > 0 && controller
+			? globalThis.setTimeout(() => controller.abort(), timeoutMs)
+			: null
+
+	try {
+		const response = await fetchImpl(
+			getBrowserExtensionInstalledUrl(
+				extensionId,
+				options.installedPath ?? openaiOAuthBrowserExtensionInstalledPath,
+			),
+			{
+				cache: "no-store",
+				signal: controller?.signal,
+			},
+		)
+		if (!response.ok) {
+			return false
+		}
+
+		const marker = (await response.json().catch(() => null)) as {
+			installed?: unknown
+		} | null
+		return marker?.installed === true
+	} catch {
+		return false
+	} finally {
+		if (timeout !== null) {
+			globalThis.clearTimeout(timeout)
+		}
+	}
 }
 
 const requestToPromise = <T>(request: IDBRequest<T>): Promise<T> =>
@@ -542,18 +619,68 @@ const getCurrentRelativeUrl = (): string => {
 const getDefaultRedirectUri = (callbackPath: string): string =>
 	new URL(callbackPath, assertBrowserWindow().location.origin).toString()
 
+const getCurrentUrl = (): string =>
+	new URL(
+		getCurrentRelativeUrl(),
+		assertBrowserWindow().location.origin,
+	).toString()
+
+const bytesToBase64Url = (bytes: Uint8Array): string =>
+	bytesToBase64(bytes)
+		.replaceAll("+", "-")
+		.replaceAll("/", "_")
+		.replace(/=+$/, "")
+
+const randomURLSafeString = (byteLength: number): string => {
+	const bytes = new Uint8Array(byteLength)
+	globalThis.crypto.getRandomValues(bytes)
+	return bytesToBase64Url(bytes)
+}
+
+const encodeBase64Url = (value: string): string =>
+	bytesToBase64Url(textEncoder.encode(value))
+
+const createBrowserExtensionState = (
+	callbackUrl: string,
+	appState?: string,
+): string => {
+	const payload: Record<string, string | number> = {
+		type: "openai-oauth-callback",
+		version: 1,
+		nonce: randomURLSafeString(24),
+		callbackUrl,
+	}
+	if (appState) {
+		payload.appState = appState
+	}
+
+	return `${browserExtensionStatePrefix}${encodeBase64Url(JSON.stringify(payload))}`
+}
+
 export const startLogin = async (
 	options: StartLoginOptions = {},
 ): Promise<OpenAIOAuthRequest> => {
 	const browserWindow = assertBrowserWindow()
+	const callbackMode = options.callbackMode ?? "browser-extension"
+	const returnTo = options.returnTo ?? getCurrentRelativeUrl()
+	const callbackUrl = options.callbackPath
+		? getDefaultRedirectUri(options.callbackPath)
+		: callbackMode === "browser-extension"
+			? getCurrentUrl()
+			: getDefaultRedirectUri("/auth/callback")
 	const redirectUri =
 		options.redirectUri ??
-		getDefaultRedirectUri(options.callbackPath ?? "/auth/callback")
+		(callbackMode === "browser-extension"
+			? browserExtensionRedirectUri
+			: callbackUrl)
 	const request = await createOpenAIOAuthRequest({
 		clientId: options.clientId,
 		issuer: options.issuer,
 		scope: options.scope,
-		state: options.state,
+		state:
+			callbackMode === "browser-extension"
+				? createBrowserExtensionState(callbackUrl, options.state)
+				: options.state,
 		codeVerifier: options.codeVerifier,
 		simplifiedFlow: options.simplifiedFlow,
 		idTokenAddOrganizations: options.idTokenAddOrganizations,
@@ -565,7 +692,7 @@ export const startLogin = async (
 		state: request.state,
 		codeVerifier: request.codeVerifier,
 		redirectUri: request.redirectUri,
-		returnTo: options.returnTo ?? getCurrentRelativeUrl(),
+		returnTo,
 	})
 
 	if (options.openMode === "popup") {
@@ -608,6 +735,16 @@ export const completeLogin = async (
 	}
 
 	if (oauthError) {
+		if (
+			oauthError === "access_denied" &&
+			pending &&
+			callbackState === pending.state
+		) {
+			clearPendingLogin()
+			browserWindow.history.replaceState(null, "", pending.returnTo || "/")
+			return null
+		}
+
 		throw new Error(
 			url.searchParams.get("error_description") ??
 				`OpenAI OAuth returned ${oauthError}.`,
