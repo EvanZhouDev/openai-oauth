@@ -66,10 +66,56 @@ What currently works:
 - Working Endpoints:
   - `/v1/responses`
   - `/v1/chat/completions`
+  - `/v1/images/generations`
   - `/v1/models` (account-aware by default, or overridden with `--models`)
 - Streaming Responses
+- Image generation through `/v1/images/generations` or streamed `/v1/responses` `image_generation` tool events
 - Toolcalls
 - Reasoning Traces
+
+## Image Generation
+
+Image generation is available through the OpenAI-compatible
+`/v1/images/generations` route. Internally, the default implementation uses the
+Codex `/responses` image generation tool, but the server routes through an
+`ImageGenerationGateway` interface so deployments can swap the implementation.
+
+Request:
+
+```bash
+curl http://127.0.0.1:10531/v1/images/generations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-5.4",
+    "prompt": "Generate a simple image of a blue square on a white background.",
+    "images": ["data:image/png;base64,..."],
+    "size": "1024x1024",
+    "quality": "low"
+  }'
+```
+
+The optional `images` field is a project-specific extension for reference
+images. Entries may be image data URLs or raw base64 strings. Raw base64 entries
+are sent upstream as `data:image/png;base64,...` image inputs.
+
+Response:
+
+```json
+{
+  "created": 1760000000,
+  "data": [
+    {
+      "b64_json": "...base64 image data...",
+      "revised_prompt": "Generate a simple image of a blue square on a white background."
+    }
+  ]
+}
+```
+
+You can also call streamed `/v1/responses` directly with an `image_generation`
+tool. In that mode, image bytes are emitted on
+`response.image_generation_call.partial_image` events in the `partial_image_b64`
+field.
 
 ## Known Limitations
 
