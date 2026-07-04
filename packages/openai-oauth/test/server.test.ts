@@ -242,6 +242,75 @@ describe("openai oauth server", () => {
 		})
 	})
 
+	test("rebuilds non-streaming response body from streamed items when response.completed.output is empty", async () => {
+		// Regression: Codex sometimes emits `response.completed` with an empty
+		// `output` array even though individual items were streamed via
+		// `response.output_item.done`. The non-streaming client path must
+		// reconstruct `output` from those streamed items rather than returning
+		// an empty assistant turn.
+		const authFilePath = await createAuthFile()
+		const fetch = vi.fn(async () => {
+			const stream = new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(
+						new TextEncoder().encode(
+							[
+								"event: response.created",
+								'data: {"type":"response.created","response":{"id":"resp_rebuild","status":"in_progress","output":[]}}',
+								"",
+								"event: response.output_item.done",
+								'data: {"type":"response.output_item.done","output_index":0,"item":{"type":"reasoning","id":"rs_1","summary":[{"type":"summary_text","text":"thinking"}]}}',
+								"",
+								"event: response.output_item.done",
+								'data: {"type":"response.output_item.done","output_index":1,"item":{"type":"message","id":"msg_1","content":[{"type":"output_text","text":"hello"}]}}',
+								"",
+								"event: response.completed",
+								'data: {"type":"response.completed","response":{"id":"resp_rebuild","status":"completed","output":[],"usage":{"input_tokens":3,"output_tokens":2}}}',
+								"",
+							].join("\n"),
+						),
+					)
+					controller.close()
+				},
+			})
+
+			return new Response(stream, { status: 200 })
+		})
+
+		const handler = createOpenAIOAuthFetchHandler({
+			authFilePath,
+			ensureFresh: false,
+			fetch,
+		})
+
+		const response = await handler(
+			new Request("http://localhost/v1/responses", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					model: "gpt-5.4",
+					stream: false,
+				}),
+			}),
+		)
+
+		expect(response.status).toBe(200)
+		const json = (await response.json()) as Record<string, unknown>
+		expect(json.id).toBe("resp_rebuild")
+		const output = json.output as Record<string, unknown>[]
+		expect(Array.isArray(output)).toBe(true)
+		expect(output.length).toBe(2)
+		expect(output[0]).toMatchObject({ type: "reasoning", id: "rs_1" })
+		expect(output[1]).toMatchObject({ type: "message", id: "msg_1" })
+
+		await fs.rm(path.dirname(authFilePath), {
+			recursive: true,
+			force: true,
+		})
+	})
+
 	test("rejects previous_response_id on the stateless responses endpoint", async () => {
 		const authFilePath = await createAuthFile()
 		const fetch = vi.fn()
