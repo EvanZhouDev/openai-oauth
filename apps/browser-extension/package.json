@@ -4,7 +4,9 @@
 	"private": true,
 	"description": "Browser helper for OpenAI OAuth web sign-in.",
 	"scripts": {
-		"build": "rm -rf dist && mkdir -p dist/src/assets && cp manifest.json dist/manifest.json && cp src/background.js src/confirm.html src/confirm.js src/installed.json dist/src/ && cp src/assets/* dist/src/assets/",
+		"build": "node scripts/build.mjs",
+		"build:dev": "node scripts/build.mjs --dev",
+		"pack": "bun run build && rm -rf dist-pack && mkdir -p dist-pack && find dist -name .DS_Store -delete && cd dist && zip -r -X ../dist-pack/sign-in-with-chatgpt-0.0.2.zip .",
 		"typecheck": "echo 'No typecheck for browser-extension'",
 		"test": "echo 'No tests for browser-extension'"
 	}

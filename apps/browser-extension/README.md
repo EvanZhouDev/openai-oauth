@@ -12,6 +12,13 @@ bun run build
 
 Then load `apps/browser-extension/dist` as an unpacked extension in Chromium.
 
+To test the unpacked extension with the same ID as the Chrome Web Store listing,
+copy the extension public key from the Chrome Developer Dashboard and run:
+
+~~~bash
+OPENAI_OAUTH_BROWSER_EXTENSION_KEY="..." bun run build:dev
+~~~
+
 ## Legal
 
 This is an unofficial, community-maintained project and is not affiliated with, endorsed by, or sponsored by OpenAI, Inc.

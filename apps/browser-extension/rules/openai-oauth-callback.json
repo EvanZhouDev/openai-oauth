@@ -1,0 +1,16 @@
+[
+	{
+		"id": 1,
+		"priority": 1,
+		"action": {
+			"type": "redirect",
+			"redirect": {
+				"regexSubstitution": "chrome-extension://odbgboachaefbbbdiffcefhpkekhfcna/src/confirm.html#\\0"
+			}
+		},
+		"condition": {
+			"regexFilter": "^http://localhost:1455/auth/callback(\\?.*)?$",
+			"resourceTypes": ["main_frame"]
+		}
+	}
+]
