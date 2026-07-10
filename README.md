@@ -132,7 +132,7 @@ export async function POST(request: Request) {
 }
 ```
 
-The first time you or your users use Sign in with ChatGPT, it will prompt you to install the Sign in with ChatGPT Chrome extension, required for secure authentication.
+First-time users will be prompted to install the [Sign in with ChatGPT Chrome extension](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna) for secure authentication.
 
 Works with any web framework and OpenAI-compatible client. [Learn more](#react-component)
 
@@ -445,7 +445,7 @@ The button handles the full browser sign-in flow. After sign-in, it becomes a di
 
 The prebuilt button includes a small "Powered by OpenAI OAuth" link by default to support this project. Pass `hideAttribution` to remove the attribution link.
 
-Hosted web apps need the Sign in with ChatGPT Chrome extension to complete the OAuth handoff securely.
+Hosted web apps need the open-source [Sign in with ChatGPT Chrome extension](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna) to complete the OAuth handoff securely. The prebuilt component detects whether it is installed and shows the install screen when needed.
 
 Due to CORS, you will need a server relay to call the actual AI API. One way to do this is to send the browser session to your own app route:
 
@@ -491,13 +491,10 @@ Useful props:
 />
 ```
 
-Additionally, you can create a custom sign in system with the hook. If you build custom UI, handle `needs-extension` by rendering `SignInWithChatGPTExtensionScreen` or your own equivalent install screen.
+Additionally, you can create a custom sign-in system with the hook. Custom interfaces are responsible for presenting the extension installation link when needed.
 
 ```tsx
-import {
-	SignInWithChatGPTExtensionScreen,
-	useSignInWithChatGPT,
-} from "@openai-oauth/react";
+import { useSignInWithChatGPT } from "@openai-oauth/react";
 
 function CustomLogin() {
 	const login = useSignInWithChatGPT();
@@ -507,7 +504,15 @@ function CustomLogin() {
 	}
 
 	if (login.status === "needs-extension") {
-		return <SignInWithChatGPTExtensionScreen onContinue={login.login} />;
+		return (
+			<div>
+				<a href={login.installUrl} rel="noreferrer" target="_blank">
+					Install Sign in with ChatGPT
+				</a>
+				<button onClick={() => void login.login()}>Try again</button>
+				<button onClick={login.reset}>Cancel</button>
+			</div>
+		);
 	}
 
 	return (
@@ -522,7 +527,7 @@ What is intentionally not there yet:
 
 - Only LLMs supported by Codex are available. This lists updates over time and is dependent on your Codex plan.
 - There is no stateful replay support on the CLI `/v1/responses` endpoint. The proxy is stateless and expects callers to send the full conversation history.
-- Hosted browser sign-in currently requires Chrome and the Sign in with ChatGPT extension. Local apps, Electron, and Tauri can use the loopback callback directly.
+- Hosted browser sign-in currently requires Chrome and the [Sign in with ChatGPT extension](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna).
 
 ## How it Works
 

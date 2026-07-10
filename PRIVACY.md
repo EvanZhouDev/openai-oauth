@@ -1,6 +1,6 @@
 # OpenAI OAuth Privacy Policy
 
-Effective date: July 2, 2026
+Effective date: July 10, 2026
 
 OpenAI OAuth is an unofficial, community-maintained project. It is not affiliated with, endorsed by, or sponsored by OpenAI, Inc.
 
@@ -8,11 +8,15 @@ OpenAI OAuth is an unofficial, community-maintained project. It is not affiliate
 
 The Sign in with ChatGPT browser extension is used only to complete sign-in.
 
-During sign-in, it detects the local OpenAI OAuth callback at `http://localhost:1455/auth/callback`, shows a confirmation screen, and returns you to the app you chose.
+During sign-in, it redirects the local OpenAI OAuth callback at `http://localhost:1455/auth/callback` to an extension confirmation screen. The screen shows which app requested sign-in and returns you to that app only after you continue.
 
-The extension temporarily handles the OAuth callback parameters, such as `code` and `state`, and the app URL that started sign-in. This data is stored only in Chrome session storage for the active sign-in flow and is removed when you continue or cancel.
+The extension temporarily handles the OAuth callback parameters, such as `code` and `state`, and the app URL that started sign-in. This data is not saved to extension storage and is sent only to the app you confirm.
 
 OpenAI OAuth does not receive this data on any OpenAI OAuth server.
+
+## Extension Permissions
+
+The extension requests access only to `http://localhost:1455/*` so it can redirect OpenAI's local OAuth callback.
 
 ## What The Extension Does Not Do
 
