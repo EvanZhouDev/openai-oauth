@@ -48,6 +48,8 @@ export async function POST(request: Request) {
 }
 ```
 
+Use `@openai-oauth/react` to establish the browser credentials. See the [Sign in with ChatGPT setup](https://github.com/EvanZhouDev/openai-oauth#sign-in-with-chatgpt-setup).
+
 The default `apiKey` is the placeholder string `openai-oauth`. Authentication is handled by the custom `fetch` implementation.
 
 Useful options:
