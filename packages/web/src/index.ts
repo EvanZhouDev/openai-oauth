@@ -460,6 +460,7 @@ const toSession = (
 	return {
 		accessToken: token.accessToken,
 		accountId,
+		isFedRamp: token.isFedRamp,
 		idToken: token.idToken,
 		refreshToken: token.refreshToken ?? options.previousRefreshToken,
 		expiresAt:
@@ -530,8 +531,12 @@ export const getSession = async (
 		},
 		options,
 	)
-	await sessionStore.set(refreshed)
-	return refreshed
+	const nextSession =
+		session.isFedRamp && !refreshed.isFedRamp
+			? { ...refreshed, isFedRamp: true }
+			: refreshed
+	await sessionStore.set(nextSession)
+	return nextSession
 }
 
 export const openaiAuthHeaders = async (
@@ -548,6 +553,9 @@ export const openaiAuthHeaders = async (
 	const headers = new Headers(options.headers)
 	headers.set("Authorization", `Bearer ${session.accessToken}`)
 	headers.set("chatgpt-account-id", session.accountId)
+	if (session.isFedRamp) {
+		headers.set("X-OpenAI-Fedramp", "true")
+	}
 	return toPlainHeaders(headers)
 }
 

@@ -332,7 +332,9 @@ describe("openai oauth cli", () => {
 			expect(messages).toContain(`Credentials saved to ${authFilePath}`)
 
 			const [, tokenInit] = tokenFetch.mock.calls[0] ?? []
-			expect(JSON.parse(String(tokenInit?.body))).toMatchObject({
+			expect(
+				Object.fromEntries(new URLSearchParams(String(tokenInit?.body))),
+			).toMatchObject({
 				grant_type: "authorization_code",
 				code: "code-cli",
 				redirect_uri: "http://localhost:1455/auth/callback",

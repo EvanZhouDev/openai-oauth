@@ -36,7 +36,6 @@ const toTransport = (input: OpenAIClientInput): OpenAIOAuthTransport => {
 		headers: input.headers,
 		instructions: input.instructions,
 		openAIBaseURL: input.openAIBaseURL,
-		storeResponses: input.storeResponses,
 	})
 }
 

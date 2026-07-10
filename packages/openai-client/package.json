@@ -29,7 +29,8 @@
 		"build": "tsc -p tsconfig.build.json",
 		"prepublishOnly": "bun run build",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run --passWithNoTests"
+		"test": "vitest run",
+		"test:live": "LIVE_CODEX_E2E=1 vitest run test/live.e2e.test.ts"
 	},
 	"publishConfig": {
 		"access": "public"
@@ -38,6 +39,7 @@
 		"@openai-oauth/core": "workspace:*"
 	},
 	"devDependencies": {
+		"openai": "6.46.0",
 		"typescript": "latest",
 		"vitest": "latest"
 	},

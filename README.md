@@ -38,7 +38,7 @@ $ npx openai-oauth
 
 OpenAI-compatible endpoint ready at http://127.0.0.1:10531/v1
 Use this as your OpenAI base URL. No API key is required.
-Available Models: gpt-5.5, gpt-5.4, ...
+Available Models: gpt-5.6-terra, gpt-5.6-sol, ...
 ```
 
 ### TypeScript SDK
@@ -204,10 +204,10 @@ The CLI also supports a few configuration options that generally do not need to 
       <td>Comma-separated list of model ids exposed by <code>/v1/models</code>. When omitted, the CLI discovers the models your account has access to.</td>
     </tr>
     <tr>
-      <td>Codex API version</td>
+      <td>Codex client version</td>
       <td><code>--codex-version</code></td>
-      <td>Local <code>codex --version</code>, then latest <code>@openai/codex</code> from npm, then <code>0.111.0</code></td>
-      <td>Override the Codex API client version used for model discovery.</td>
+      <td>Latest <code>@openai/codex</code> from npm, with a bundled fallback</td>
+      <td>Override the Codex client version used for model discovery.</td>
     </tr>
     <tr>
       <td>Upstream base URL</td>

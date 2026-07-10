@@ -12,6 +12,46 @@ const session = {
 	accountId: "acct-1",
 }
 
+const createMockFetch = (
+	handleUpstream: (
+		input: RequestInfo | URL,
+		init?: RequestInit,
+	) => Promise<Response> = async () => new Response(null, { status: 200 }),
+) =>
+	vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+		const url = String(input)
+		if (url === "https://registry.npmjs.org/@openai/codex/latest") {
+			return new Response(JSON.stringify({ version: "0.144.1" }))
+		}
+		if (url.includes("/backend-api/codex/models?")) {
+			return new Response(
+				JSON.stringify({
+					models: [
+						{ slug: "gpt-5.2", visibility: "list" },
+						{ slug: "gpt-5.4-mini", visibility: "list" },
+						{ slug: "codex-auto-review", visibility: "hide" },
+						{
+							slug: "gpt-5.6-sol",
+							visibility: "list",
+							use_responses_lite: true,
+							support_verbosity: true,
+							default_verbosity: "low",
+							default_reasoning_level: "low",
+						},
+					],
+				}),
+			)
+		}
+		return handleUpstream(input, init)
+	})
+
+const upstreamCalls = (fetch: ReturnType<typeof createMockFetch>) =>
+	fetch.mock.calls.filter(
+		([input]) =>
+			!String(input).includes("registry.npmjs.org") &&
+			!String(input).includes("/backend-api/codex/models?"),
+	)
+
 afterEach(() => {
 	vi.restoreAllMocks()
 })
@@ -28,7 +68,7 @@ describe("normalizeCodexResponsesBody", () => {
 		expect("max_output_tokens" in normalized).toBe(false)
 	})
 
-	test("preserves caller-provided instructions and explicit store", () => {
+	test("preserves caller-provided instructions and always disables storage", () => {
 		const normalized = normalizeCodexResponsesBody(
 			{
 				instructions: "caller-instructions",
@@ -40,7 +80,7 @@ describe("normalizeCodexResponsesBody", () => {
 		)
 
 		expect(normalized.instructions).toBe("caller-instructions")
-		expect(normalized.store).toBe(true)
+		expect(normalized.store).toBe(false)
 	})
 
 	test("preserves explicit empty and whitespace instructions", () => {
@@ -67,23 +107,45 @@ describe("normalizeCodexResponsesBody", () => {
 		).toBe(" ")
 	})
 
-	test("allows callers to override the store default", () => {
-		const normalized = normalizeCodexResponsesBody(
-			{
-				model: "gpt-5.2",
-			},
-			{
-				storeResponses: false,
-			},
-		)
+	test("normalizes string input and requests encrypted reasoning content", () => {
+		const normalized = normalizeCodexResponsesBody({
+			model: "gpt-5.2",
+			input: "Hello",
+			include: ["web_search_call.action.sources"],
+		})
 
-		expect(normalized.store).toBe(false)
+		expect(normalized.input).toEqual([
+			{
+				role: "user",
+				content: [{ type: "input_text", text: "Hello" }],
+			},
+		])
+		expect(normalized.include).toEqual([
+			"web_search_call.action.sources",
+			"reasoning.encrypted_content",
+		])
 	})
 })
 
 describe("createCodexOAuthFetch", () => {
+	test("returns an OpenAI-compatible list of visible models", async () => {
+		const fetch = createMockFetch()
+		const connection = createOpenAIOAuthTransport({ auth: session, fetch })
+
+		const response = await connection.request("/models")
+		const payload = await response.json()
+
+		expect(response.status).toBe(200)
+		expect(payload.data.map((model: { id: string }) => model.id)).toEqual([
+			"gpt-5.2",
+			"gpt-5.4-mini",
+			"gpt-5.6-sol",
+		])
+		expect(upstreamCalls(fetch)).toHaveLength(0)
+	})
+
 	test("creates an in-memory OpenAI-compatible connection", async () => {
-		const fetch = vi.fn(async () => new Response(null, { status: 200 }))
+		const fetch = createMockFetch()
 		const connection = createOpenAIOAuthTransport({
 			auth: session,
 			fetch,
@@ -98,16 +160,16 @@ describe("createCodexOAuthFetch", () => {
 			body: JSON.stringify({ model: "gpt-5.2" }),
 		})
 
-		expect(fetch).toHaveBeenCalledWith(
+		expect(upstreamCalls(fetch)).toContainEqual([
 			"https://chatgpt.com/backend-api/codex/responses",
 			expect.objectContaining({
 				method: "POST",
 			}),
-		)
+		])
 	})
 
 	test("injects oauth headers and normalizes responses requests", async () => {
-		const fetch = vi.fn(async () => new Response(null, { status: 200 }))
+		const fetch = createMockFetch()
 
 		const oauthFetch = createCodexOAuthFetch({
 			auth: session,
@@ -127,28 +189,104 @@ describe("createCodexOAuthFetch", () => {
 			}),
 		})
 
-		expect(fetch).toHaveBeenCalledTimes(1)
-		expect(fetch).toHaveBeenCalledWith(
-			"https://chatgpt.com/backend-api/codex/responses",
-			expect.objectContaining({
-				headers: expect.any(Headers),
-				body: expect.any(String),
-			}),
-		)
-
-		const [, init] = fetch.mock.calls[0] ?? []
+		expect(upstreamCalls(fetch)).toHaveLength(1)
+		const [, init] = upstreamCalls(fetch)[0] ?? []
 		const headers = new Headers(init?.headers)
 		const body = JSON.parse(String(init?.body))
 
 		expect(headers.get("authorization")).toMatch(/^Bearer /)
 		expect(headers.get("chatgpt-account-id")).toBeTruthy()
+		expect(headers.has("openai-beta")).toBe(false)
 		expect(body.instructions).toBe("core-instructions")
 		expect(body.store).toBe(false)
+		expect(body.stream).toBe(true)
 		expect(body.max_output_tokens).toBeUndefined()
 	})
 
+	test("bridges non-streaming OpenAI requests over the required SSE transport", async () => {
+		const fetch = createMockFetch(
+			async () =>
+				new Response(
+					[
+						"event: response.completed",
+						'data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-5.6-sol","status":"completed","output":[],"usage":{"input_tokens":1,"output_tokens":1}}}',
+						"",
+						"",
+					].join("\n"),
+					{ headers: { "Content-Type": "text/event-stream" } },
+				),
+		)
+		const oauthFetch = createCodexOAuthFetch({ auth: session, fetch })
+
+		const response = await oauthFetch("https://example.test/v1/responses", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				model: "gpt-5.6-sol",
+				instructions: "Be concise.",
+				input: "Hello",
+				tools: [{ type: "function", name: "weather" }],
+				parallel_tool_calls: true,
+			}),
+		})
+
+		expect(response.headers.get("content-type")).toBe("application/json")
+		await expect(response.json()).resolves.toMatchObject({
+			id: "resp_1",
+			status: "completed",
+			usage: { input_tokens: 1, output_tokens: 1 },
+		})
+		const [, init] = upstreamCalls(fetch)[0] ?? []
+		const headers = new Headers(init?.headers)
+		const body = JSON.parse(String(init?.body))
+		expect(headers.get("x-openai-internal-codex-responses-lite")).toBe("true")
+		expect(body.stream).toBe(true)
+		expect(body).toMatchObject({
+			instructions: "",
+			parallel_tool_calls: false,
+			reasoning: { effort: "low", context: "all_turns" },
+			text: { verbosity: "low" },
+		})
+		expect(body.tools).toBeUndefined()
+		expect(body.input).toEqual([
+			{
+				type: "additional_tools",
+				role: "developer",
+				tools: [{ type: "function", name: "weather" }],
+			},
+			{
+				role: "developer",
+				content: [{ type: "input_text", text: "Be concise." }],
+			},
+			{
+				role: "user",
+				content: [{ type: "input_text", text: "Hello" }],
+			},
+		])
+	})
+
+	test("routes FedRAMP sessions without accepting caller header overrides", async () => {
+		const fetch = createMockFetch()
+		const oauthFetch = createCodexOAuthFetch({
+			auth: { ...session, isFedRamp: true },
+			fetch,
+		})
+
+		await oauthFetch("responses", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				"X-OpenAI-Fedramp": "false",
+			},
+			body: JSON.stringify({ model: "gpt-5.2", input: [] }),
+		})
+
+		const [, init] = upstreamCalls(fetch)[0] ?? []
+		expect(new Headers(init?.headers).get("x-openai-fedramp")).toBe("true")
+	})
+
 	test("preserves absolute codex urls without duplicating the upstream path", async () => {
-		const fetch = vi.fn(async () => new Response(null, { status: 200 }))
+		const fetch = createMockFetch()
 
 		const oauthFetch = createCodexOAuthFetch({
 			auth: session,
@@ -168,15 +306,16 @@ describe("createCodexOAuthFetch", () => {
 			},
 		)
 
-		expect(fetch).toHaveBeenCalledTimes(1)
-		expect(fetch).toHaveBeenCalledWith(
-			"https://chatgpt.com/backend-api/codex/responses?foo=bar",
-			expect.any(Object),
-		)
+		expect(upstreamCalls(fetch)).toEqual([
+			[
+				"https://chatgpt.com/backend-api/codex/responses?foo=bar",
+				expect.any(Object),
+			],
+		])
 	})
 
 	test("supports relative response paths", async () => {
-		const fetch = vi.fn(async () => new Response(null, { status: 200 }))
+		const fetch = createMockFetch()
 
 		const oauthFetch = createCodexOAuthFetch({
 			auth: session,
@@ -193,15 +332,13 @@ describe("createCodexOAuthFetch", () => {
 			}),
 		})
 
-		expect(fetch).toHaveBeenCalledTimes(1)
-		expect(fetch).toHaveBeenCalledWith(
-			"https://chatgpt.com/backend-api/codex/responses",
-			expect.any(Object),
-		)
+		expect(upstreamCalls(fetch)).toEqual([
+			["https://chatgpt.com/backend-api/codex/responses", expect.any(Object)],
+		])
 	})
 
 	test("can disable local replay state entirely", async () => {
-		const fetch = vi.fn(async () => new Response(null, { status: 200 }))
+		const fetch = createMockFetch()
 
 		const oauthFetch = createCodexOAuthFetch({
 			auth: session,
@@ -221,7 +358,7 @@ describe("createCodexOAuthFetch", () => {
 			}),
 		})
 
-		const [, init] = fetch.mock.calls[0] ?? []
+		const [, init] = upstreamCalls(fetch)[0] ?? []
 		expect(JSON.parse(String(init?.body))).toMatchObject({
 			model: "gpt-5.2",
 			previous_response_id: "resp_1",
@@ -232,7 +369,7 @@ describe("createCodexOAuthFetch", () => {
 	})
 
 	test("runtime connection replays prior response state locally", async () => {
-		const fetch = vi.fn(async () => {
+		const fetch = createMockFetch(async () => {
 			return new Response(
 				[
 					"event: response.completed",
@@ -275,7 +412,7 @@ describe("createCodexOAuthFetch", () => {
 			}),
 		})
 
-		const [, secondInit] = fetch.mock.calls[1] ?? []
+		const [, secondInit] = upstreamCalls(fetch)[1] ?? []
 		const secondBody = JSON.parse(String(secondInit?.body))
 		expect(secondBody.previous_response_id).toBeUndefined()
 		expect(secondBody.input).toEqual([
@@ -298,7 +435,7 @@ describe("createCodexOAuthFetch", () => {
 	})
 
 	test("accepts an async session supplier", async () => {
-		const fetch = vi.fn(async () => new Response(null, { status: 200 }))
+		const fetch = createMockFetch()
 		const getSession = vi.fn(async () => session)
 		const oauthFetch = createCodexOAuthFetch({
 			auth: getSession,
@@ -316,10 +453,9 @@ describe("createCodexOAuthFetch", () => {
 		})
 
 		expect(getSession).toHaveBeenCalledTimes(1)
-		expect(fetch).toHaveBeenCalledWith(
-			"https://chatgpt.com/backend-api/codex/responses",
-			expect.any(Object),
-		)
+		expect(upstreamCalls(fetch)).toEqual([
+			["https://chatgpt.com/backend-api/codex/responses", expect.any(Object)],
+		])
 	})
 })
 

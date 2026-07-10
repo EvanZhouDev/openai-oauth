@@ -15,7 +15,6 @@ export type LocalOpenAIOAuthOptions = Omit<AuthLoaderOptions, "fetch"> & {
 	headers?: Record<string, string>
 	instructions?: string
 	openAIBaseURL?: string
-	storeResponses?: boolean
 }
 
 const pickFetch = (customFetch?: FetchFunction): FetchFunction => {
@@ -31,6 +30,7 @@ const pickFetch = (customFetch?: FetchFunction): FetchFunction => {
 const toSession = (auth: EffectiveAuth): OpenAIOAuthSession => ({
 	accessToken: auth.accessToken,
 	accountId: auth.accountId,
+	isFedRamp: auth.isFedRamp,
 	idToken: auth.idToken,
 	refreshToken: auth.refreshToken,
 	lastRefresh: auth.lastRefresh,
@@ -45,7 +45,6 @@ export const openaiCredentials = (
 	headers: options.headers,
 	instructions: options.instructions,
 	openAIBaseURL: options.openAIBaseURL,
-	storeResponses: options.storeResponses,
 	getSession: async () =>
 		toSession(
 			await loadAuthTokens({

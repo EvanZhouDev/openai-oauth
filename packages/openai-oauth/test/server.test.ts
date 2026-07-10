@@ -63,6 +63,9 @@ describe("openai oauth server", () => {
 	test("loads account models from codex when no override is configured", async () => {
 		const authFilePath = await createAuthFile()
 		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			if (String(input) === "https://registry.npmjs.org/@openai/codex/latest") {
+				return Response.json({ version: "0.144.1" })
+			}
 			expect(String(input)).toContain(
 				"/backend-api/codex/models?client_version=",
 			)
@@ -95,7 +98,13 @@ describe("openai oauth server", () => {
 		)
 
 		expect(response.status).toBe(200)
-		expect(fetch).toHaveBeenCalledTimes(1)
+		expect(
+			fetch.mock.calls.some(([input]) =>
+				String(input).includes(
+					"/backend-api/codex/models?client_version=0.144.1",
+				),
+			),
+		).toBe(true)
 		await expect(response.json()).resolves.toEqual({
 			object: "list",
 			data: [
@@ -178,7 +187,14 @@ describe("openai oauth server", () => {
 
 	test("aggregates streaming responses requests into json when stream is false", async () => {
 		const authFilePath = await createAuthFile()
-		const fetch = vi.fn(async () => {
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			if (String(input).includes("/backend-api/codex/models?")) {
+				return new Response(
+					JSON.stringify({
+						models: [{ slug: "gpt-5.2", visibility: "list" }],
+					}),
+				)
+			}
 			const stream = new ReadableStream<Uint8Array>({
 				start(controller) {
 					controller.enqueue(
@@ -221,8 +237,11 @@ describe("openai oauth server", () => {
 			}),
 		)
 
-		expect(fetch).toHaveBeenCalledTimes(1)
-		const [, init] = fetch.mock.calls[0] ?? []
+		const responseCalls = fetch.mock.calls.filter(([input]) =>
+			String(input).endsWith("/backend-api/codex/responses"),
+		)
+		expect(responseCalls).toHaveLength(1)
+		const [, init] = responseCalls[0] ?? []
 		expect(JSON.parse(String(init?.body))).toMatchObject({
 			model: "gpt-5.2",
 			stream: true,

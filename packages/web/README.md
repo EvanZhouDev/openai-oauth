@@ -162,7 +162,6 @@ type WebServerOpenAIOAuthOptions = {
 	headers?: Record<string, string>;
 	instructions?: string;
 	openAIBaseURL?: string;
-	storeResponses?: boolean;
 };
 ```
 

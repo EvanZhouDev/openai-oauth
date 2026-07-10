@@ -4,12 +4,30 @@ import { createOpenAIOAuth } from "../src/index.js"
 
 describe("createOpenAIOAuth", () => {
 	test("uses request-bound OAuth credentials for generateText calls", async () => {
-		const fetch = vi.fn(
-			async () =>
-				new Response(
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = String(input)
+			if (url === "https://registry.npmjs.org/@openai/codex/latest") {
+				return Response.json({ version: "0.144.1" })
+			}
+			if (url.includes("/backend-api/codex/models?")) {
+				return Response.json({
+					models: [
+						{
+							slug: "gpt-5.6-sol",
+							visibility: "list",
+							use_responses_lite: true,
+							support_verbosity: true,
+							default_verbosity: "low",
+							default_reasoning_level: "low",
+						},
+					],
+				})
+			}
+			if (url === "https://chatgpt.com/backend-api/codex/responses") {
+				return new Response(
 					[
 						"event: response.created",
-						'data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-5.4-mini","created_at":1735689600}}',
+						'data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-5.6-sol","created_at":1735689600}}',
 						"",
 						"event: response.output_text.delta",
 						'data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":"hello"}',
@@ -18,15 +36,18 @@ describe("createOpenAIOAuth", () => {
 						'data: {"type":"response.output_text.done","item_id":"msg_1","output_index":0,"content_index":0,"text":"hello"}',
 						"",
 						"event: response.completed",
-						'data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-5.4-mini","created_at":1735689600,"status":"completed","output":[],"usage":{"input_tokens":1,"output_tokens":1}}}',
+						'data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-5.6-sol","created_at":1735689600,"status":"completed","output":[],"usage":{"input_tokens":1,"output_tokens":1}}}',
 						"",
 						"",
 					].join("\n"),
 					{
 						headers: { "Content-Type": "text/event-stream" },
 					},
-				),
-		)
+				)
+			}
+
+			throw new Error(`Unexpected request: ${url}`)
+		})
 		const openai = createOpenAIOAuth({
 			kind: "openai-oauth",
 			fetch,
@@ -41,7 +62,7 @@ describe("createOpenAIOAuth", () => {
 		})
 
 		const result = await generateText({
-			model: openai("gpt-5.4-mini"),
+			model: openai("gpt-5.6-sol"),
 			prompt: "hi",
 		})
 
@@ -50,16 +71,24 @@ describe("createOpenAIOAuth", () => {
 		expect(result.usage.inputTokens).toBe(1)
 		expect(result.usage.outputTokens).toBe(1)
 		expect(result.usage.totalTokens).toBe(2)
-		expect(fetch).toHaveBeenCalledTimes(1)
-
-		const [url, init] = fetch.mock.calls[0] ?? []
+		const responseCall = fetch.mock.calls.find(
+			([input]) =>
+				String(input) === "https://chatgpt.com/backend-api/codex/responses",
+		)
+		const [url, init] = responseCall ?? []
 		const headers = new Headers(init?.headers)
 		const body = JSON.parse(String(init?.body))
 
 		expect(url).toBe("https://chatgpt.com/backend-api/codex/responses")
 		expect(headers.get("authorization")).toBe("Bearer access-token")
 		expect(headers.get("chatgpt-account-id")).toBe("acct-1")
+		expect(headers.get("x-openai-internal-codex-responses-lite")).toBe("true")
 		expect(body.stream).toBe(true)
 		expect(body.store).toBe(false)
+		expect(body.reasoning).toMatchObject({
+			effort: "low",
+			context: "all_turns",
+		})
+		expect(body.text).toMatchObject({ verbosity: "low" })
 	})
 })

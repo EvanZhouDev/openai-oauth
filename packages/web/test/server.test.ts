@@ -269,6 +269,7 @@ describe("@openai-oauth/web", () => {
 		const stored = {
 			accessToken: createToken("acct_old"),
 			accountId: "acct_old",
+			isFedRamp: true,
 			refreshToken: "refresh-token",
 			expiresAt: "2026-01-01T00:01:00.000Z",
 			lastRefresh: "2026-01-01T00:00:00.000Z",
@@ -302,6 +303,7 @@ describe("@openai-oauth/web", () => {
 			authorization: `Bearer ${accessToken}`,
 			"chatgpt-account-id": "acct_refreshed",
 			"content-type": "application/json",
+			"x-openai-fedramp": "true",
 		})
 		expect({ ...headers }).toMatchObject({
 			authorization: `Bearer ${accessToken}`,
@@ -310,9 +312,31 @@ describe("@openai-oauth/web", () => {
 		expect(sessionStore.set).toHaveBeenCalledWith({
 			accessToken,
 			accountId: "acct_refreshed",
+			isFedRamp: true,
 			idToken: accessToken,
 			refreshToken: "refresh-token",
+			expiresAt: undefined,
 			lastRefresh: "2026-01-01T00:00:00.000Z",
+		})
+	})
+
+	test("openaiAuthHeaders forwards the FedRAMP workspace marker", async () => {
+		const sessionStore = {
+			get: vi.fn(async () => ({
+				accessToken: "access-token",
+				accountId: "acct-fedramp",
+				isFedRamp: true,
+			})),
+			set: vi.fn(async () => {}),
+			clear: vi.fn(async () => {}),
+		}
+
+		await expect(
+			openaiAuthHeaders({ sessionStore, refresh: false }),
+		).resolves.toMatchObject({
+			authorization: "Bearer access-token",
+			"chatgpt-account-id": "acct-fedramp",
+			"x-openai-fedramp": "true",
 		})
 	})
 
@@ -322,6 +346,7 @@ describe("@openai-oauth/web", () => {
 				headers: {
 					Authorization: "Bearer access-token",
 					"chatgpt-account-id": "acct-1",
+					"X-OpenAI-Fedramp": "true",
 				},
 			}),
 		)
@@ -329,6 +354,7 @@ describe("@openai-oauth/web", () => {
 		await expect(credentials.getSession()).resolves.toEqual({
 			accessToken: "access-token",
 			accountId: "acct-1",
+			isFedRamp: true,
 		})
 	})
 
@@ -364,6 +390,7 @@ describe("@openai-oauth/web", () => {
 		).resolves.toEqual({
 			accessToken,
 			accountId: "acct_exchange",
+			isFedRamp: false,
 			idToken: accessToken,
 			refreshToken: "refresh-token",
 			expiresAt: "2026-01-01T01:00:00.000Z",
@@ -372,12 +399,17 @@ describe("@openai-oauth/web", () => {
 
 		const [url, init] = fetch.mock.calls[0] ?? []
 		expect(url).toBe("https://auth.example.test/oauth/token")
-		expect(JSON.parse(String(init?.body))).toMatchObject({
+		expect(
+			Object.fromEntries(new URLSearchParams(String(init?.body))),
+		).toMatchObject({
 			grant_type: "authorization_code",
 			code: "auth-code",
 			code_verifier: "verifier",
 			redirect_uri: "https://app.example.test/auth/callback",
 		})
+		expect(new Headers(init?.headers).get("content-type")).toBe(
+			"application/x-www-form-urlencoded",
+		)
 	})
 
 	test("refreshes sessions and keeps the previous refresh token when none is rotated", async () => {
@@ -408,8 +440,10 @@ describe("@openai-oauth/web", () => {
 		).resolves.toEqual({
 			accessToken,
 			accountId: "acct_refresh",
+			isFedRamp: false,
 			idToken: accessToken,
 			refreshToken: "old-refresh-token",
+			expiresAt: undefined,
 			lastRefresh: "2026-01-01T00:00:00.000Z",
 		})
 

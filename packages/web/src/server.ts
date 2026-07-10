@@ -10,7 +10,6 @@ export type WebServerOpenAIOAuthOptions = {
 	headers?: Record<string, string>
 	instructions?: string
 	openAIBaseURL?: string
-	storeResponses?: boolean
 }
 
 const getHeaders = (input: Request | Headers): Headers =>
@@ -36,6 +35,7 @@ const getRequestSession = (input: Request | Headers): OpenAIOAuthSession => {
 	return {
 		accessToken,
 		accountId,
+		isFedRamp: headers.get("x-openai-fedramp") === "true",
 	}
 }
 
@@ -52,7 +52,6 @@ export const openaiCredentials = (
 		headers: options.headers,
 		instructions: options.instructions,
 		openAIBaseURL: options.openAIBaseURL,
-		storeResponses: options.storeResponses,
 		getSession: async () => session,
 		refreshSession: async () => session,
 	}

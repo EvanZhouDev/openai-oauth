@@ -64,7 +64,7 @@ const helpLines = [
 	"  --host <host>              Proxy host. Login callback always listens on loopback.",
 	"  --port <port>              Proxy port. Default: 10531.",
 	"  --models <ids>             Comma-separated model ids to expose from /v1/models.",
-	"  --codex-version <version>  Codex API version to use for model discovery.",
+	"  --codex-version <version>  Override the Codex client version used for model discovery.",
 	"  --base-url <url>           Override the upstream Codex base URL.",
 	"  --oauth-client-id <id>     Override the OAuth client id used for refresh.",
 	"  --oauth-token-url <url>    Override the OAuth token URL used for refresh.",
@@ -78,7 +78,7 @@ const helpLines = [
 	"",
 	"Notes",
 	"  If no auth file is found, run: npx openai-oauth login",
-	"  By default, available models are discovered from your account.",
+	"  By default, the latest Codex version and available account models are discovered automatically.",
 ]
 
 const createCliParser = (argv: string[]) =>
@@ -102,7 +102,7 @@ const createCliParser = (argv: string[]) =>
 		})
 		.option("codex-version", {
 			type: "string",
-			describe: "Codex API version to use for model discovery.",
+			describe: "Override the Codex client version used for model discovery.",
 		})
 		.option("base-url", {
 			type: "string",
@@ -392,16 +392,7 @@ export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 		auth: () => auth.getSession(),
 		responsesState: false as const,
 	})
-	const availableModels = await resolveOpenAIOAuthModels(
-		client,
-		options.models,
-		{
-			codexVersion: options.codexVersion,
-			onWarning: (message) => {
-				console.error(message)
-			},
-		},
-	)
+	const availableModels = await resolveOpenAIOAuthModels(client, options.models)
 	const server = await startOpenAIOAuthServer(options)
 
 	console.log(

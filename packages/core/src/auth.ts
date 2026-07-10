@@ -5,6 +5,7 @@ import {
 	DEFAULT_OPENAI_OAUTH_CLIENT_ID,
 	DEFAULT_OPENAI_OAUTH_ISSUER,
 	deriveAccountId,
+	deriveChatGptAccountIsFedRamp,
 	type FetchFunction,
 	type OpenAIOAuthTokenResponse,
 	parseJwtClaims,
@@ -27,6 +28,7 @@ type StoredTokens = {
 }
 
 type AuthFile = {
+	[key: string]: unknown
 	OPENAI_API_KEY?: string
 	tokens?: StoredTokens
 	last_refresh?: string
@@ -35,6 +37,7 @@ type AuthFile = {
 export type EffectiveAuth = {
 	accessToken: string
 	accountId: string
+	isFedRamp?: boolean
 	idToken?: string
 	refreshToken?: string
 	sourcePath?: string
@@ -72,6 +75,7 @@ type RefreshOutcome = {
 	idToken?: string
 	refreshToken?: string
 	accountId?: string
+	isFedRamp?: boolean
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -164,11 +168,13 @@ const resolveWritePath = (preferred: string | undefined): string => {
 }
 
 const toAuthFile = (input: Record<string, unknown>): AuthFile => {
-	const auth: AuthFile = {}
+	const auth: AuthFile = { ...input }
 	const tokensValue = input.tokens
 
 	if (typeof input.OPENAI_API_KEY === "string" && input.OPENAI_API_KEY) {
 		auth.OPENAI_API_KEY = input.OPENAI_API_KEY
+	} else {
+		delete auth.OPENAI_API_KEY
 	}
 
 	if (isRecord(tokensValue) && Object.keys(tokensValue).length > 0) {
@@ -190,10 +196,14 @@ const toAuthFile = (input: Record<string, unknown>): AuthFile => {
 					? tokensValue.account_id
 					: undefined,
 		}
+	} else {
+		delete auth.tokens
 	}
 
 	if (typeof input.last_refresh === "string" && input.last_refresh) {
 		auth.last_refresh = input.last_refresh
+	} else {
+		delete auth.last_refresh
 	}
 
 	return auth
@@ -260,6 +270,7 @@ export const saveAuthTokens = async (
 
 	await writeAuthFile(filePath, {
 		...existing,
+		auth_mode: "chatgpt",
 		tokens: {
 			id_token: options.token.idToken,
 			access_token: options.token.accessToken,
@@ -274,6 +285,7 @@ export const saveAuthTokens = async (
 		auth: {
 			accessToken: options.token.accessToken,
 			accountId,
+			isFedRamp: options.token.isFedRamp,
 			idToken: options.token.idToken,
 			refreshToken: options.token.refreshToken,
 			sourcePath: filePath,
@@ -288,24 +300,21 @@ const refreshChatGptTokens = async (
 	issuer: string,
 	tokenUrl: string | undefined,
 	fetchFn: FetchFunction,
-): Promise<RefreshOutcome | undefined> => {
-	try {
-		const refreshed = await refreshOpenAIOAuthTokens({
-			refreshToken,
-			clientId,
-			issuer,
-			tokenUrl,
-			fetch: fetchFn,
-		})
+): Promise<RefreshOutcome> => {
+	const refreshed = await refreshOpenAIOAuthTokens({
+		refreshToken,
+		clientId,
+		issuer,
+		tokenUrl,
+		fetch: fetchFn,
+	})
 
-		return {
-			accessToken: refreshed.accessToken,
-			idToken: refreshed.idToken,
-			refreshToken: refreshed.refreshToken ?? refreshToken,
-			accountId: refreshed.accountId,
-		}
-	} catch {
-		return undefined
+	return {
+		accessToken: refreshed.accessToken,
+		idToken: refreshed.idToken,
+		refreshToken: refreshed.refreshToken ?? refreshToken,
+		accountId: refreshed.accountId,
+		isFedRamp: refreshed.isFedRamp,
 	}
 }
 
@@ -348,6 +357,9 @@ export const loadAuthTokens = async (
 	let idToken = tokens.id_token
 	let refreshToken = tokens.refresh_token
 	let accountId = tokens.account_id ?? deriveAccountId(idToken)
+	let isFedRamp =
+		deriveChatGptAccountIsFedRamp(idToken) ||
+		deriveChatGptAccountIsFedRamp(accessToken)
 	let lastRefresh = authData.last_refresh
 
 	const needsRefresh =
@@ -364,25 +376,29 @@ export const loadAuthTokens = async (
 			fetch,
 		)
 
-		if (refreshed) {
-			accessToken = refreshed.accessToken
-			idToken = refreshed.idToken ?? idToken
-			refreshToken = refreshed.refreshToken ?? refreshToken
-			accountId = refreshed.accountId ?? accountId
-			lastRefresh = now().toISOString()
+		accessToken = refreshed.accessToken
+		idToken = refreshed.idToken ?? idToken
+		refreshToken = refreshed.refreshToken ?? refreshToken
+		accountId = refreshed.accountId ?? accountId
+		isFedRamp =
+			isFedRamp ||
+			refreshed.isFedRamp === true ||
+			deriveChatGptAccountIsFedRamp(idToken) ||
+			deriveChatGptAccountIsFedRamp(accessToken)
+		lastRefresh = now().toISOString()
 
-			const writePath = resolveWritePath(readResult.path ?? authFilePath)
-			await writeAuthFile(writePath, {
-				...authData,
-				tokens: {
-					id_token: idToken,
-					access_token: accessToken,
-					refresh_token: refreshToken,
-					account_id: accountId,
-				},
-				last_refresh: lastRefresh,
-			})
-		}
+		const writePath = resolveWritePath(readResult.path ?? authFilePath)
+		await writeAuthFile(writePath, {
+			...authData,
+			auth_mode: "chatgpt",
+			tokens: {
+				id_token: idToken,
+				access_token: accessToken,
+				refresh_token: refreshToken,
+				account_id: accountId,
+			},
+			last_refresh: lastRefresh,
+		})
 	}
 
 	if (typeof accessToken !== "string" || accessToken.length === 0) {
@@ -400,6 +416,7 @@ export const loadAuthTokens = async (
 	return {
 		accessToken,
 		accountId,
+		isFedRamp,
 		idToken,
 		refreshToken,
 		sourcePath: readResult.path ?? resolveWritePath(authFilePath),

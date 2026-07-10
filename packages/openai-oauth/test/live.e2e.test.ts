@@ -10,7 +10,7 @@ import * as z from "zod"
 import { startOpenAIOAuthServer } from "../src/index.js"
 
 const liveTest = process.env.LIVE_CODEX_E2E === "1" ? test : test.skip
-const liveModel = "gpt-5.4-mini"
+const liveModel = "gpt-5.6-terra"
 
 describe("openai oauth server live e2e", () => {
 	let stop: (() => Promise<void>) | undefined
@@ -38,6 +38,16 @@ describe("openai oauth server live e2e", () => {
 			expect(Array.isArray(modelsPayload.data)).toBe(true)
 			expect(modelsPayload.data.length).toBeGreaterThan(0)
 			expect(
+				modelsPayload.data.some(
+					(model: { id?: unknown }) => model.id === liveModel,
+				),
+			).toBe(true)
+			expect(
+				modelsPayload.data.some(
+					(model: { id?: unknown }) => model.id === "codex-auto-review",
+				),
+			).toBe(false)
+			expect(
 				modelsPayload.data.every(
 					(model: { id?: unknown }) =>
 						typeof model.id === "string" && model.id.length > 0,
@@ -52,21 +62,15 @@ describe("openai oauth server live e2e", () => {
 				body: JSON.stringify({
 					model: liveModel,
 					stream: false,
-					input: [
-						{
-							role: "user",
-							content: [
-								{
-									type: "input_text",
-									text: "Reply with exactly: endpoint-json-ok",
-								},
-							],
-						},
-					],
+					input: "Reply with exactly: endpoint-json-ok",
 				}),
 			})
 
 			expect(directResponse.ok).toBe(true)
+			const directPayload = await directResponse.json()
+			expect(directPayload.status).toBe("completed")
+			expect(directPayload.usage.input_tokens).toBeGreaterThan(0)
+			expect(directPayload.usage.output_tokens).toBeGreaterThan(0)
 
 			const openai = createOpenAI({
 				baseURL,

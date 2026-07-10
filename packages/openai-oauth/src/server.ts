@@ -91,9 +91,7 @@ export const createOpenAIOAuthFetchHandler = (
 	}
 	const client = createCodexOAuthClient(sharedSettings)
 	const provider = createOpenAIOAuth(auth)
-	const resolveModels = createModelResolver(client, settings.models, {
-		codexVersion: settings.codexVersion,
-	})
+	const resolveModels = createModelResolver(client, settings.models)
 	const requestLogger = createRequestLogger(settings)
 
 	return async (request) => {

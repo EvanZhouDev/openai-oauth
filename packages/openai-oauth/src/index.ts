@@ -6,9 +6,8 @@ export {
 	createOpenAIOAuthFetchHandler,
 	startOpenAIOAuthServer,
 } from "./server.js"
-export {
-	defaultOpenAIOAuthModels,
-	type OpenAIOAuthServerLogEvent,
-	type OpenAIOAuthServerOptions,
-	type RunningOpenAIOAuthServer,
+export type {
+	OpenAIOAuthServerLogEvent,
+	OpenAIOAuthServerOptions,
+	RunningOpenAIOAuthServer,
 } from "./types.js"

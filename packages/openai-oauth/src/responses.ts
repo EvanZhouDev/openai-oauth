@@ -40,7 +40,6 @@ export const handleResponsesRequest = async (
 			normalizeCodexResponsesBody(body, {
 				forceStream: true,
 				instructions: settings.instructions,
-				storeResponses: settings.storeResponses,
 			}),
 		),
 	})

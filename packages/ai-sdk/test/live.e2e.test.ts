@@ -11,7 +11,7 @@ import { createOpenAIOAuth } from "../src/index.js"
 
 const liveTest = process.env.LIVE_CODEX_E2E === "1" ? test : test.skip
 const openai = createOpenAIOAuth(openaiCredentials())
-const liveModel = "gpt-5.4-mini"
+const liveModel = "gpt-5.6-terra"
 
 describe("openai oauth provider live e2e", () => {
 	liveTest(
@@ -34,11 +34,12 @@ describe("openai oauth provider live e2e", () => {
 			let streamInputTokens: number | undefined
 			const reasoningStream = streamText({
 				model: openai(liveModel),
-				prompt: "Think briefly and reply with exactly: provider-stream-ok",
+				prompt:
+					"Compute 173 * 219 carefully. Reply with the number and one sentence explaining the calculation.",
 				providerOptions: {
 					openai: {
-						reasoningEffort: "medium",
-						reasoningSummary: "auto",
+						reasoningEffort: "high",
+						reasoningSummary: "detailed",
 					},
 				},
 			})
@@ -60,7 +61,7 @@ describe("openai oauth provider live e2e", () => {
 
 			expect(reasoningEvents).toContain("reasoning-start")
 			expect(reasoningEvents).toContain("reasoning-end")
-			expect(streamedText).toContain("provider-stream-ok")
+			expect(streamedText).toContain("37887")
 			expect(streamFinishReason).toBe("stop")
 			expect(streamInputTokens).toBeGreaterThan(0)
 

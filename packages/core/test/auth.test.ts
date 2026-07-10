@@ -7,8 +7,10 @@ import { loadAuthTokens, saveAuthTokens } from "../src/auth.js"
 import {
 	createOpenAIOAuthRequest,
 	deriveAccountId,
+	deriveChatGptAccountIsFedRamp,
 	exchangeOpenAIOAuthCode,
 	parseJwtClaims,
+	refreshOpenAIOAuthTokens,
 } from "../src/runtime.js"
 
 const encodeBase64Url = (value: Record<string, unknown>): string =>
@@ -44,6 +46,18 @@ describe("auth helpers", () => {
 				}),
 			),
 		).toBe("acct-1")
+	})
+
+	test("derives the FedRAMP routing claim", () => {
+		expect(
+			deriveChatGptAccountIsFedRamp(
+				createJwt({
+					"https://api.openai.com/auth": {
+						chatgpt_account_is_fedramp: true,
+					},
+				}),
+			),
+		).toBe(true)
 	})
 
 	test("createOpenAIOAuthRequest builds a PKCE authorize URL", async () => {
@@ -113,14 +127,39 @@ describe("auth helpers", () => {
 		const [, init] = fetch.mock.calls[0] ?? []
 		expect(init).toMatchObject({
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: { "Content-Type": "application/x-www-form-urlencoded" },
 		})
+		expect(Object.fromEntries(new URLSearchParams(String(init?.body)))).toEqual(
+			{
+				grant_type: "authorization_code",
+				code: "code-1",
+				redirect_uri: "http://127.0.0.1:1234/auth/callback",
+				client_id: "client-1",
+				code_verifier: "verifier-1",
+			},
+		)
+	})
+
+	test("refreshOpenAIOAuthTokens uses the current Codex refresh payload", async () => {
+		const fetch = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ access_token: "new-access" }), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				}),
+		)
+
+		await refreshOpenAIOAuthTokens({
+			refreshToken: "refresh-1",
+			clientId: "client-1",
+			fetch,
+		})
+
+		const [, init] = fetch.mock.calls[0] ?? []
 		expect(JSON.parse(String(init?.body))).toEqual({
-			grant_type: "authorization_code",
-			code: "code-1",
-			redirect_uri: "http://127.0.0.1:1234/auth/callback",
+			grant_type: "refresh_token",
+			refresh_token: "refresh-1",
 			client_id: "client-1",
-			code_verifier: "verifier-1",
 		})
 	})
 
@@ -147,6 +186,7 @@ describe("auth helpers", () => {
 			expect(saved.path).toBe(authPath)
 			expect(saved.auth.accountId).toBe("acct-1")
 			expect(written).toEqual({
+				auth_mode: "chatgpt",
 				tokens: {
 					id_token: idToken,
 					access_token: "access",
@@ -229,6 +269,9 @@ describe("loadAuthTokens", () => {
 		const now = new Date("2025-01-01T00:00:00Z")
 		const expiredToken = createJwt({
 			exp: Math.floor(now.getTime() / 1000) - 10,
+			"https://api.openai.com/auth": {
+				chatgpt_account_is_fedramp: true,
+			},
 		})
 		const refreshedIdToken = createJwt({
 			"https://api.openai.com/auth": { chatgpt_account_id: "acct-2" },
@@ -264,6 +307,7 @@ describe("loadAuthTokens", () => {
 
 			expect(result.accessToken).toBe("new-access")
 			expect(result.accountId).toBe("acct-2")
+			expect(result.isFedRamp).toBe(true)
 			expect(result.refreshToken).toBe("new-refresh")
 
 			const updated = JSON.parse(await fs.readFile(authPath, "utf-8"))

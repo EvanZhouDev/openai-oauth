@@ -38,6 +38,7 @@ describe("openaiCredentials", () => {
 			await expect(auth.getSession()).resolves.toEqual({
 				accessToken: "access-token",
 				accountId: "acct-1",
+				isFedRamp: false,
 				idToken: "id-token",
 				refreshToken: "refresh-token",
 				lastRefresh: "2026-01-01T00:00:00.000Z",

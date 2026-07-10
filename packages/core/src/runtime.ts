@@ -1,4 +1,9 @@
 import { withoutTrailingSlash } from "@ai-sdk/provider-utils"
+import {
+	type CodexModelInfo,
+	fetchCodexModelCatalog,
+	isPublicCodexModel,
+} from "./models.js"
 import { CodexResponsesState } from "./state.js"
 
 export {
@@ -21,12 +26,16 @@ export const DEFAULT_OPENAI_OAUTH_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
 export const DEFAULT_OPENAI_OAUTH_ISSUER = "https://auth.openai.com"
 export const DEFAULT_OPENAI_OAUTH_SCOPE = "openid profile email offline_access"
 const DEFAULT_CODEX_INSTRUCTIONS = ""
+const MODEL_CATALOG_TTL_MS = 5 * 60 * 1000
+const MODEL_CATALOG_FAILURE_TTL_MS = 60 * 1000
+const RESPONSES_LITE_HEADER = "x-openai-internal-codex-responses-lite"
 
 export type FetchFunction = typeof fetch
 
 export type OpenAIOAuthSession = {
 	accessToken: string
 	accountId: string
+	isFedRamp?: boolean
 	idToken?: string
 	refreshToken?: string
 	expiresAt?: string
@@ -46,7 +55,6 @@ export type OpenAIOAuth = {
 	headers?: Record<string, string>
 	instructions?: string
 	openAIBaseURL?: string
-	storeResponses?: boolean
 }
 
 export type SessionStore = {
@@ -81,6 +89,7 @@ export type OpenAIOAuthTokenResponse = {
 	idToken?: string
 	expiresIn?: number
 	accountId?: string
+	isFedRamp?: boolean
 	raw: unknown
 }
 
@@ -107,10 +116,10 @@ export type RefreshOpenAIOAuthTokensOptions = {
 export type CodexOAuthRuntimeSettings = {
 	auth: OpenAIOAuthSessionInput
 	baseURL?: string
+	codexVersion?: string
 	fetch?: FetchFunction
 	headers?: Record<string, string>
 	instructions?: string
-	storeResponses?: boolean
 	responsesState?: CodexResponsesState | false
 }
 
@@ -149,8 +158,12 @@ type RequestParts = {
 export type NormalizeCodexResponsesBodyOptions = {
 	instructions?: string
 	forceStream?: boolean
-	storeResponses?: boolean
 }
+
+type InternalNormalizeCodexResponsesBodyOptions =
+	NormalizeCodexResponsesBodyOptions & {
+		modelInfo?: CodexModelInfo
+	}
 
 const textEncoder = new TextEncoder()
 
@@ -271,6 +284,18 @@ export const deriveAccountId = (
 	return undefined
 }
 
+export const deriveChatGptAccountIsFedRamp = (
+	token: string | undefined,
+): boolean => {
+	const claims = parseJwtClaims(token)
+	if (!claims) {
+		return false
+	}
+
+	const authClaim = claims["https://api.openai.com/auth"]
+	return isRecord(authClaim) && authClaim.chatgpt_account_is_fedramp === true
+}
+
 const resolveTokenUrl = (
 	issuer: string,
 	tokenUrl: string | undefined,
@@ -302,6 +327,9 @@ const toTokenResponse = (payload: unknown): OpenAIOAuthTokenResponse => {
 		idToken,
 		expiresIn,
 		accountId: deriveAccountId(idToken) ?? deriveAccountId(accessToken),
+		isFedRamp:
+			deriveChatGptAccountIsFedRamp(idToken) ||
+			deriveChatGptAccountIsFedRamp(accessToken),
 		raw: payload,
 	}
 }
@@ -313,27 +341,52 @@ const requestOpenAIOAuthTokens = async (options: {
 	fetch?: FetchFunction
 	signal?: AbortSignal
 	body: Record<string, string>
+	encoding: "form" | "json"
 }): Promise<OpenAIOAuthTokenResponse> => {
 	const issuer = options.issuer ?? DEFAULT_OPENAI_OAUTH_ISSUER
+	const isForm = options.encoding === "form"
 	const response = await pickFetch(options.fetch)(
 		resolveTokenUrl(issuer, options.tokenUrl),
 		{
 			method: "POST",
 			headers: {
-				"Content-Type": "application/json",
+				"Content-Type": isForm
+					? "application/x-www-form-urlencoded"
+					: "application/json",
 			},
-			body: JSON.stringify(options.body),
+			body: isForm
+				? new URLSearchParams(options.body).toString()
+				: JSON.stringify(options.body),
 			signal: options.signal,
 		},
 	)
+	const bodyText = await response.text()
 
 	if (!response.ok) {
+		let detail = ""
+		try {
+			const parsed = JSON.parse(bodyText)
+			if (isRecord(parsed)) {
+				const message =
+					parsed.error_description ?? parsed.message ?? parsed.detail
+				if (typeof message === "string") {
+					detail = ` ${message}`
+				}
+			}
+		} catch {}
 		throw new Error(
-			`OpenAI OAuth token request failed with HTTP ${response.status}.`,
+			`OpenAI OAuth token request failed with HTTP ${response.status}.${detail}`,
 		)
 	}
 
-	return toTokenResponse(await response.json())
+	try {
+		return toTokenResponse(JSON.parse(bodyText))
+	} catch (error) {
+		if (error instanceof SyntaxError) {
+			throw new Error("OpenAI OAuth token response was not valid JSON.")
+		}
+		throw error
+	}
 }
 
 export const createOpenAIOAuthRequest = async (
@@ -392,6 +445,7 @@ export const exchangeOpenAIOAuthCode = (
 		tokenUrl: options.tokenUrl,
 		fetch: options.fetch,
 		signal: options.signal,
+		encoding: "form",
 		body: {
 			grant_type: "authorization_code",
 			code: options.code,
@@ -409,11 +463,11 @@ export const refreshOpenAIOAuthTokens = (
 		tokenUrl: options.tokenUrl,
 		fetch: options.fetch,
 		signal: options.signal,
+		encoding: "json",
 		body: {
 			grant_type: "refresh_token",
 			refresh_token: options.refreshToken,
 			client_id: options.clientId ?? DEFAULT_OPENAI_OAUTH_CLIENT_ID,
-			scope: DEFAULT_OPENAI_OAUTH_SCOPE,
 		},
 	})
 
@@ -520,9 +574,92 @@ const decodeBody = async (
 export const getDefaultCodexInstructions = (): string =>
 	DEFAULT_CODEX_INSTRUCTIONS
 
-export const normalizeCodexResponsesBody = (
+const normalizeResponsesInput = (input: unknown): unknown =>
+	typeof input === "string"
+		? [
+				{
+					role: "user",
+					content: [{ type: "input_text", text: input }],
+				},
+			]
+		: input
+
+const addEncryptedReasoningContent = (include: unknown): string[] => {
+	const values = Array.isArray(include)
+		? include.filter((value): value is string => typeof value === "string")
+		: []
+	if (!values.includes("reasoning.encrypted_content")) {
+		values.push("reasoning.encrypted_content")
+	}
+	return values
+}
+
+const applyModelDefaults = (
+	normalized: Record<string, unknown>,
+	modelInfo: CodexModelInfo | undefined,
+): void => {
+	if (!modelInfo) {
+		return
+	}
+
+	const reasoning = isRecord(normalized.reasoning)
+		? { ...normalized.reasoning }
+		: {}
+	if (
+		reasoning.effort === undefined &&
+		modelInfo.defaultReasoningLevel !== undefined
+	) {
+		reasoning.effort = modelInfo.defaultReasoningLevel
+	}
+	if (modelInfo.useResponsesLite) {
+		reasoning.context = "all_turns"
+	}
+	if (Object.keys(reasoning).length > 0) {
+		normalized.reasoning = reasoning
+	}
+
+	if (modelInfo.supportVerbosity && modelInfo.defaultVerbosity !== undefined) {
+		const text = isRecord(normalized.text) ? { ...normalized.text } : {}
+		if (text.verbosity === undefined) {
+			text.verbosity = modelInfo.defaultVerbosity
+		}
+		normalized.text = text
+	}
+
+	if (!modelInfo.useResponsesLite) {
+		return
+	}
+
+	const input = Array.isArray(normalized.input) ? [...normalized.input] : []
+	const prefix: unknown[] = []
+	const tools = Array.isArray(normalized.tools) ? normalized.tools : []
+	if (
+		tools.length > 0 &&
+		!input.some((item) => isRecord(item) && item.type === "additional_tools")
+	) {
+		prefix.push({
+			type: "additional_tools",
+			role: "developer",
+			tools,
+		})
+	}
+
+	if (typeof normalized.instructions === "string" && normalized.instructions) {
+		prefix.push({
+			role: "developer",
+			content: [{ type: "input_text", text: normalized.instructions }],
+		})
+	}
+
+	normalized.input = [...prefix, ...input]
+	normalized.instructions = ""
+	normalized.parallel_tool_calls = false
+	delete normalized.tools
+}
+
+const normalizeCodexResponsesBodyInternal = (
 	body: Record<string, unknown>,
-	options: NormalizeCodexResponsesBodyOptions = {},
+	options: InternalNormalizeCodexResponsesBodyOptions = {},
 ): Record<string, unknown> => {
 	const normalized = { ...body }
 	const instructions =
@@ -531,23 +668,42 @@ export const normalizeCodexResponsesBody = (
 			: (options.instructions ?? getDefaultCodexInstructions())
 
 	normalized.instructions = instructions
-
-	if (normalized.store === undefined) {
-		normalized.store = options.storeResponses ?? false
-	}
+	normalized.input = normalizeResponsesInput(normalized.input)
+	normalized.store = false
+	normalized.include = addEncryptedReasoningContent(normalized.include)
+	applyModelDefaults(normalized, options.modelInfo)
 
 	if (options.forceStream) {
 		normalized.stream = true
 	}
-
 	delete normalized.max_output_tokens
 	return normalized
 }
 
+export const normalizeCodexResponsesBody = (
+	body: Record<string, unknown>,
+	options: NormalizeCodexResponsesBodyOptions = {},
+): Record<string, unknown> => normalizeCodexResponsesBodyInternal(body, options)
+
 type PreparedResponsesRequestBody = {
 	body: BodyInit | null | undefined
 	requestBody?: Record<string, unknown>
+	wantsStream?: boolean
 }
+
+type ResolveModelInfo = (
+	auth: OpenAIOAuthSession,
+	model: string,
+) => Promise<CodexModelInfo | undefined>
+
+type ModelCatalogResult = {
+	models: CodexModelInfo[]
+	error?: Error
+}
+
+type ResolveModelCatalog = (
+	auth: OpenAIOAuthSession,
+) => Promise<ModelCatalogResult>
 
 const prepareResponsesRequestBody = async (
 	pathname: string,
@@ -555,6 +711,8 @@ const prepareResponsesRequestBody = async (
 	body: BodyInit | null | undefined,
 	settings: CodexOAuthRuntimeSettings,
 	state: CodexResponsesState | undefined,
+	auth: OpenAIOAuthSession,
+	resolveModelInfo: ResolveModelInfo,
 ): Promise<PreparedResponsesRequestBody> => {
 	if (!pathname.endsWith("/responses")) {
 		return { body }
@@ -576,11 +734,20 @@ const prepareResponsesRequestBody = async (
 		) {
 			return { body }
 		}
+		const wantsStream = parsed.stream === true
+		const modelInfo =
+			typeof parsed.model === "string"
+				? await resolveModelInfo(auth, parsed.model)
+				: undefined
 
-		const normalized = normalizeCodexResponsesBody(parsed, {
+		const normalized = normalizeCodexResponsesBodyInternal(parsed, {
+			forceStream: true,
 			instructions: settings.instructions,
-			storeResponses: settings.storeResponses,
+			modelInfo,
 		})
+		if (modelInfo?.useResponsesLite) {
+			headers.set(RESPONSES_LITE_HEADER, "true")
+		}
 
 		if (state?.requiresCachedState(normalized)) {
 			await state.waitForPendingCaptures()
@@ -591,6 +758,7 @@ const prepareResponsesRequestBody = async (
 		return {
 			body: JSON.stringify(expanded),
 			requestBody: expanded,
+			wantsStream,
 		}
 	} catch {
 		return { body }
@@ -626,6 +794,130 @@ const captureResponsesState = (
 	})
 }
 
+const finalizeResponsesResponse = async (
+	response: Response,
+	prepared: PreparedResponsesRequestBody,
+	state: CodexResponsesState | undefined,
+): Promise<Response> => {
+	if (
+		prepared.requestBody == null ||
+		prepared.wantsStream == null ||
+		!response.ok ||
+		response.body == null
+	) {
+		return response
+	}
+
+	if (prepared.wantsStream) {
+		return captureResponsesState(response, prepared.requestBody, state)
+	}
+
+	const completed = await collectCompletedResponseFromSse(response.body)
+	state?.rememberResponse(completed, prepared.requestBody)
+	const headers = new Headers(response.headers)
+	headers.delete("content-encoding")
+	headers.delete("content-length")
+	headers.set("content-type", "application/json")
+	return new Response(JSON.stringify(completed), {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
+	})
+}
+
+const applyAuthHeaders = (headers: Headers, auth: OpenAIOAuthSession): void => {
+	headers.delete("authorization")
+	headers.delete("chatgpt-account-id")
+	headers.delete("openai-beta")
+	headers.delete(RESPONSES_LITE_HEADER)
+	headers.delete("x-openai-fedramp")
+	headers.set("Authorization", `Bearer ${auth.accessToken}`)
+	headers.set("chatgpt-account-id", auth.accountId)
+
+	const isFedRamp =
+		auth.isFedRamp ??
+		(deriveChatGptAccountIsFedRamp(auth.idToken) ||
+			deriveChatGptAccountIsFedRamp(auth.accessToken))
+	if (isFedRamp) {
+		headers.set("X-OpenAI-Fedramp", "true")
+	}
+}
+
+const createModelCatalogResolver = (
+	fetch: FetchFunction,
+	baseURL: string,
+	settings: CodexOAuthRuntimeSettings,
+): ResolveModelCatalog => {
+	const cache = new Map<
+		string,
+		{ expiresAt: number; result: ModelCatalogResult }
+	>()
+	const inflight = new Map<string, Promise<ModelCatalogResult>>()
+
+	return async (auth) => {
+		const cacheKey = `${auth.accountId}:${auth.isFedRamp === true}`
+		const cached = cache.get(cacheKey)
+		if (cached && cached.expiresAt > Date.now()) {
+			return cached.result
+		}
+
+		let loading = inflight.get(cacheKey)
+		if (!loading) {
+			loading = (async (): Promise<ModelCatalogResult> => {
+				try {
+					const models = await fetchCodexModelCatalog(
+						{
+							request: async (path, init) => {
+								const headers = new Headers(settings.headers)
+								new Headers(init?.headers).forEach((value, key) => {
+									headers.set(key, value)
+								})
+								applyAuthHeaders(headers, auth)
+								return fetch(
+									new URL(path.replace(/^\//, ""), `${baseURL}/`).toString(),
+									{
+										...init,
+										method: init?.method ?? "GET",
+										headers,
+									},
+								)
+							},
+						},
+						{
+							codexVersion: settings.codexVersion,
+							fetchImpl: fetch,
+						},
+					)
+					const result = { models }
+					cache.set(cacheKey, {
+						expiresAt: Date.now() + MODEL_CATALOG_TTL_MS,
+						result,
+					})
+					return result
+				} catch (error) {
+					const result = {
+						models: [],
+						error:
+							error instanceof Error
+								? error
+								: new Error("Failed to load models from Codex."),
+					}
+					cache.set(cacheKey, {
+						expiresAt: Date.now() + MODEL_CATALOG_FAILURE_TTL_MS,
+						result,
+					})
+					return result
+				}
+			})().finally(() => {
+				inflight.delete(cacheKey)
+			})
+			inflight.set(cacheKey, loading)
+		}
+
+		return loading
+	}
+}
+
 const resolveAuth = async (
 	source: OpenAIOAuthSessionInput,
 ): Promise<OpenAIOAuthSession> => {
@@ -645,23 +937,55 @@ export const createCodexOAuthFetch = (
 		settings.responsesState === false
 			? undefined
 			: (settings.responsesState ?? new CodexResponsesState())
+	const resolveModelCatalog = createModelCatalogResolver(
+		fetch,
+		baseURL,
+		settings,
+	)
+	const resolveModelInfo: ResolveModelInfo = async (auth, model) =>
+		(await resolveModelCatalog(auth)).models.find(
+			(entry) => entry.slug === model,
+		)
 
 	return async (input, init) => {
 		const request = await readRequestParts(input, init)
 		const targetUrl = resolveTargetUrl(request.url, baseURL)
 		const target = new URL(targetUrl)
 		const auth = await resolveAuth(settings.auth)
+		if (
+			(request.method ?? "GET").toUpperCase() === "GET" &&
+			target.pathname.endsWith("/models") &&
+			!target.searchParams.has("client_version")
+		) {
+			const catalog = await resolveModelCatalog(auth)
+			const models = catalog.models.filter(isPublicCodexModel)
+			if (models.length === 0) {
+				return Response.json(
+					{
+						error: {
+							message:
+								catalog.error?.message ?? "Failed to load models from Codex.",
+						},
+					},
+					{ status: 502 },
+				)
+			}
+			return Response.json({
+				object: "list",
+				data: models.map((model) => ({
+					id: model.slug,
+					object: "model",
+					created: 0,
+					owned_by: "codex-oauth",
+				})),
+			})
+		}
 
 		const headers = new Headers(settings.headers)
 		request.headers.forEach((value, key) => {
 			headers.set(key, value)
 		})
-		headers.delete("authorization")
-		headers.delete("chatgpt-account-id")
-		headers.delete("openai-beta")
-		headers.set("Authorization", `Bearer ${auth.accessToken}`)
-		headers.set("chatgpt-account-id", auth.accountId)
-		headers.set("OpenAI-Beta", "responses=experimental")
+		applyAuthHeaders(headers, auth)
 
 		const preparedBody = await prepareResponsesRequestBody(
 			target.pathname,
@@ -669,6 +993,8 @@ export const createCodexOAuthFetch = (
 			request.body,
 			settings,
 			responsesState,
+			auth,
+			resolveModelInfo,
 		)
 
 		const response = await fetch(target.toString(), {
@@ -678,11 +1004,7 @@ export const createCodexOAuthFetch = (
 			signal: request.signal ?? undefined,
 		})
 
-		return captureResponsesState(
-			response,
-			preparedBody.requestBody,
-			responsesState,
-		)
+		return finalizeResponsesResponse(response, preparedBody, responsesState)
 	}
 }
 

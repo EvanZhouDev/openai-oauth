@@ -9,7 +9,7 @@ Turn your ChatGPT account into an OpenAI-compatible local API.
 
 OpenAI-compatible endpoint ready at http://127.0.0.1:10531/v1
 Use this as your OpenAI base URL. No API key is required.
-Available Models: gpt-5.5, gpt-5.4, ...
+Available Models: gpt-5.6-sol, gpt-5.6-terra, ...
 ```
 
 ## Package Notes
@@ -35,7 +35,7 @@ Common flags:
 
 Login listens on loopback and uses `http://localhost:1455/auth/callback`, the local callback URL accepted by OpenAI OAuth.
 
-Advanced flags also exist for overriding the upstream Codex base URL, OAuth client id, OAuth token URL, and Codex API version.
+The CLI resolves the latest published Codex client version automatically. Advanced flags also exist for overriding it, the upstream Codex base URL, OAuth client id, and OAuth token URL.
 
 ## More
 
