@@ -116,8 +116,13 @@ const browserExtensionStatePrefix = "oo2_"
 const browserExtensionRedirectUri = "http://localhost:1455/auth/callback"
 const browserExtensionId = "odbgboachaefbbbdiffcefhpkekhfcna"
 const browserExtensionInstalledPath = "src/installed.json"
-const browserExtensionInstallUrl =
+const chromeExtensionInstallUrl =
 	"https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna"
+const firefoxExtensionInstallUrl =
+	"https://addons.mozilla.org/firefox/addon/sign-in-with-chatgpt/"
+const firefoxExtensionDetectionUrl =
+	"http://localhost:1455/openai-oauth/installed"
+const browserExtensionMarkerType = "openai-oauth:browser-extension-installed"
 const browserExtensionDetectionTimeoutMs = 750
 const refreshExpiryMarginMs = 5 * 60 * 1000
 const refreshIntervalMs = 55 * 60 * 1000
@@ -141,7 +146,11 @@ const assertBrowserWindow = (): Window => {
 	return window
 }
 
-const isBrowserExtensionInstalled = async (): Promise<boolean> => {
+const isFirefox = (): boolean =>
+	typeof navigator !== "undefined" &&
+	navigator.userAgent.toLowerCase().includes("firefox/")
+
+const isChromeExtensionInstalled = async (): Promise<boolean> => {
 	const fetchImpl = globalThis.fetch
 	if (!fetchImpl) {
 		return false
@@ -180,6 +189,69 @@ const isBrowserExtensionInstalled = async (): Promise<boolean> => {
 		}
 	}
 }
+
+const isFirefoxExtensionInstalled = (browserWindow: Window): Promise<boolean> =>
+	new Promise((resolve) => {
+		const document = browserWindow.document
+		const parent = document?.body ?? document?.documentElement
+		if (!document?.createElement || !parent) {
+			resolve(false)
+			return
+		}
+
+		const iframe = document.createElement("iframe")
+		iframe.hidden = true
+		iframe.setAttribute("aria-hidden", "true")
+		iframe.src = firefoxExtensionDetectionUrl
+
+		let settled = false
+		const finish = (installed: boolean) => {
+			if (settled) {
+				return
+			}
+			settled = true
+			globalThis.clearTimeout(timeout)
+			browserWindow.removeEventListener("message", onMessage)
+			iframe.remove()
+			resolve(installed)
+		}
+		const onMessage = (event: MessageEvent) => {
+			const data = event.data as {
+				name?: unknown
+				protocol?: unknown
+				protocolVersion?: unknown
+				type?: unknown
+			} | null
+			if (
+				event.source === iframe.contentWindow &&
+				event.origin.startsWith("moz-extension://") &&
+				data?.type === browserExtensionMarkerType &&
+				data.name === "sign-in-with-chatgpt" &&
+				data.protocol === "openai-oauth-browser-extension" &&
+				data.protocolVersion === 1
+			) {
+				finish(true)
+			}
+		}
+		const timeout = globalThis.setTimeout(
+			() => finish(false),
+			browserExtensionDetectionTimeoutMs,
+		)
+
+		browserWindow.addEventListener("message", onMessage)
+		parent.appendChild(iframe)
+	})
+
+const getBrowserExtension = (browserWindow: Window) =>
+	isFirefox()
+		? {
+				installUrl: firefoxExtensionInstallUrl,
+				isInstalled: () => isFirefoxExtensionInstalled(browserWindow),
+			}
+		: {
+				installUrl: chromeExtensionInstallUrl,
+				isInstalled: isChromeExtensionInstalled,
+			}
 
 const requestToPromise = <T>(request: IDBRequest<T>): Promise<T> =>
 	new Promise((resolve, reject) => {
@@ -641,10 +713,11 @@ export const startLogin = async (
 > => {
 	const browserWindow = assertBrowserWindow()
 	const usesBrowserExtension = options.redirectUri === undefined
-	if (usesBrowserExtension && !(await isBrowserExtensionInstalled())) {
+	const browserExtension = getBrowserExtension(browserWindow)
+	if (usesBrowserExtension && !(await browserExtension.isInstalled())) {
 		return {
 			status: "needs-extension",
-			installUrl: browserExtensionInstallUrl,
+			installUrl: browserExtension.installUrl,
 		}
 	}
 

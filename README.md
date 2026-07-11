@@ -132,7 +132,7 @@ export async function POST(request: Request) {
 }
 ```
 
-First-time users will be prompted to install the [Sign in with ChatGPT Chrome extension](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna) for secure authentication.
+First-time users will be prompted to install Sign in with ChatGPT for [Chrome](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna) or [Firefox](https://addons.mozilla.org/firefox/addon/sign-in-with-chatgpt/) for secure authentication.
 
 Works with any web framework and OpenAI-compatible client. [Learn more](#react-component)
 
@@ -445,7 +445,7 @@ The button handles the full browser sign-in flow. After sign-in, it becomes a di
 
 The prebuilt button includes a small "Powered by OpenAI OAuth" link by default to support this project. Pass `hideAttribution` to remove the attribution link.
 
-Hosted web apps need the open-source [Sign in with ChatGPT Chrome extension](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna) to complete the OAuth handoff securely. The prebuilt component detects whether it is installed and shows the install screen when needed.
+Hosted web apps need the open-source Sign in with ChatGPT extension for [Chrome](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna) or [Firefox](https://addons.mozilla.org/firefox/addon/sign-in-with-chatgpt/) to complete the OAuth handoff securely. The prebuilt component detects the current browser and shows the correct install screen when needed.
 
 Due to CORS, you will need a server relay to call the actual AI API. One way to do this is to send the browser session to your own app route:
 
@@ -527,7 +527,7 @@ What is intentionally not there yet:
 
 - Only LLMs supported by Codex are available. This lists updates over time and is dependent on your Codex plan.
 - There is no stateful replay support on the CLI `/v1/responses` endpoint. The proxy is stateless and expects callers to send the full conversation history.
-- Hosted browser sign-in currently requires Chrome and the [Sign in with ChatGPT extension](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna).
+- Hosted browser sign-in currently supports Chrome and Firefox. Safari is not yet supported.
 
 ## How it Works
 

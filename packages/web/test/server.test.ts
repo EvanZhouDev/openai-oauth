@@ -24,6 +24,7 @@ const createToken = (accountId: string): string =>
 	].join(".")
 
 afterEach(() => {
+	vi.useRealTimers()
 	vi.unstubAllGlobals()
 })
 
@@ -63,6 +64,114 @@ describe("@openai-oauth/web", () => {
 		)
 		expect(assign).not.toHaveBeenCalled()
 		expect(setItem).not.toHaveBeenCalled()
+	})
+
+	test("startLogin reports when the Firefox add-on is required", async () => {
+		vi.useFakeTimers()
+		const assign = vi.fn()
+		const setItem = vi.fn()
+		const remove = vi.fn()
+		const iframe = {
+			contentWindow: {},
+			hidden: false,
+			remove,
+			setAttribute: vi.fn(),
+			src: "",
+		}
+		const listeners = new Map<string, EventListener>()
+		vi.stubGlobal("navigator", { userAgent: "Firefox/152.0" })
+		vi.stubGlobal("window", {
+			addEventListener: vi.fn((type: string, listener: EventListener) => {
+				listeners.set(type, listener)
+			}),
+			document: {
+				body: {
+					appendChild: vi.fn(),
+				},
+				createElement: vi.fn(() => iframe),
+			},
+			location: {
+				href: "https://app.example.test/",
+				origin: "https://app.example.test",
+				pathname: "/",
+				search: "",
+				hash: "",
+				assign,
+			},
+			removeEventListener: vi.fn((type: string) => listeners.delete(type)),
+			sessionStorage: {
+				getItem: vi.fn(() => null),
+				setItem,
+				removeItem: vi.fn(),
+			},
+		} as unknown as Window)
+
+		const login = startLogin()
+		await vi.advanceTimersByTimeAsync(750)
+
+		await expect(login).resolves.toEqual({
+			status: "needs-extension",
+			installUrl:
+				"https://addons.mozilla.org/firefox/addon/sign-in-with-chatgpt/",
+		})
+		expect(iframe.src).toBe("http://localhost:1455/openai-oauth/installed")
+		expect(remove).toHaveBeenCalled()
+		expect(assign).not.toHaveBeenCalled()
+		expect(setItem).not.toHaveBeenCalled()
+	})
+
+	test("startLogin detects the Firefox add-on installation marker", async () => {
+		const assign = vi.fn()
+		const iframe = {
+			contentWindow: {},
+			hidden: false,
+			remove: vi.fn(),
+			setAttribute: vi.fn(),
+			src: "",
+		}
+		const listeners = new Map<string, EventListener>()
+		vi.stubGlobal("navigator", { userAgent: "Firefox/152.0" })
+		vi.stubGlobal("window", {
+			addEventListener: vi.fn((type: string, listener: EventListener) => {
+				listeners.set(type, listener)
+			}),
+			document: {
+				body: {
+					appendChild: vi.fn(() => {
+						listeners.get("message")?.({
+							data: {
+								name: "sign-in-with-chatgpt",
+								protocol: "openai-oauth-browser-extension",
+								protocolVersion: 1,
+								type: "openai-oauth:browser-extension-installed",
+							},
+							origin: "moz-extension://runtime-id",
+							source: iframe.contentWindow,
+						} as unknown as Event)
+					}),
+				},
+				createElement: vi.fn(() => iframe),
+			},
+			location: {
+				href: "https://app.example.test/",
+				origin: "https://app.example.test",
+				pathname: "/",
+				search: "",
+				hash: "",
+				assign,
+			},
+			removeEventListener: vi.fn((type: string) => listeners.delete(type)),
+			sessionStorage: {
+				getItem: vi.fn(() => null),
+				setItem: vi.fn(),
+				removeItem: vi.fn(),
+			},
+		} as unknown as Window)
+
+		await expect(startLogin({ codeVerifier: "verifier-1" })).resolves.toEqual({
+			status: "started",
+		})
+		expect(assign).toHaveBeenCalledOnce()
 	})
 
 	test("startLogin defaults to the browser-extension relay callback", async () => {

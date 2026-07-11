@@ -26,9 +26,9 @@ await fetch("/api/chat", {
 
 ### Hosted Sign-in
 
-Hosted browser sign-in uses the open-source [Sign in with ChatGPT Chrome extension](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna) to complete OpenAI's local OAuth callback. The extension shows the destination app for confirmation and then returns the callback directly to it.
+Hosted browser sign-in uses the open-source Sign in with ChatGPT extension for [Chrome](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna) or [Firefox](https://addons.mozilla.org/firefox/addon/sign-in-with-chatgpt/) to complete OpenAI's local OAuth callback. The extension shows the destination app for confirmation and then returns the callback directly to it.
 
-`startLogin()` uses this extension flow by default. When installation is needed, it returns the official Chrome Web Store URL for your interface to display:
+`startLogin()` uses this extension flow by default. When installation is needed, it returns the correct Chrome Web Store or Firefox Add-ons URL for your interface to display:
 
 ```ts
 import { startLogin } from "@openai-oauth/web";
@@ -43,7 +43,7 @@ if (result.status === "needs-extension") {
 
 After installation, call `startLogin()` again when the user returns to your app or presses Sign in again. It will start OAuth once the extension is available.
 
-The extension uses a single static redirect for `http://localhost:1455/auth/callback`. After the user confirms the destination, call `completeLogin()` on the returned app URL to exchange the code and save the browser session.
+The extension redirects only `http://localhost:1455/auth/callback`. After the user confirms the destination, call `completeLogin()` on the returned app URL to exchange the code and save the browser session.
 
 `startLogin()` returns `{ status: "started" }` when OAuth begins or `{ status: "needs-extension", installUrl }` when your interface should show installation UI. Provide an explicit `redirectUri` only when your environment handles its own registered callback without the extension.
 

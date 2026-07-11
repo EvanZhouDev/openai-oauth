@@ -26,7 +26,7 @@ export default function Page() {
 
 The prebuilt button includes a small "Powered by OpenAI OAuth" link by default. Pass `hideAttribution` to render only the button with no attribution link or reserved space.
 
-Hosted web apps need the open-source [Sign in with ChatGPT Chrome extension](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna) to complete the OAuth handoff securely. `SignInWithChatGPT` detects whether it is installed, shows the install screen when needed, and automatically continues once installation is detected. Developers do not need to configure the extension separately.
+Hosted web apps need the open-source Sign in with ChatGPT extension for [Chrome](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna) or [Firefox](https://addons.mozilla.org/firefox/addon/sign-in-with-chatgpt/) to complete the OAuth handoff securely. `SignInWithChatGPT` detects the current browser, shows the correct install screen when needed, and automatically continues once installation is detected. Developers do not need to configure the extension separately.
 
 Browser model calls must go through your own app route because ChatGPT does not allow direct browser CORS requests. Send the signed-in session to that route with `openaiAuthHeaders()`:
 

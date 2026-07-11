@@ -1,0 +1,16 @@
+[
+	{
+		"id": 1,
+		"priority": 1,
+		"action": {
+			"type": "redirect",
+			"redirect": {
+				"extensionPath": "/src/installed.html"
+			}
+		},
+		"condition": {
+			"regexFilter": "^http://localhost:1455/openai-oauth/installed(\\?.*)?$",
+			"resourceTypes": ["main_frame", "sub_frame"]
+		}
+	}
+]
