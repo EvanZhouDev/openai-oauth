@@ -16,7 +16,7 @@ An unpacked extension must use the same ID as the Chrome Web Store listing so th
 OPENAI_OAUTH_BROWSER_EXTENSION_KEY="..." bun run build:dev
 ~~~
 
-Then load `apps/browser-extension/dist-dev` as an unpacked extension in Chrome.
+Then load `apps/chrome-extension/dist-dev` as an unpacked extension in Chrome.
 
 Create the Chrome Web Store package with:
 

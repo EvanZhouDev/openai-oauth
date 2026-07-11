@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url"
 const extensionId = "odbgboachaefbbbdiffcefhpkekhfcna"
 const keyEnvName = "OPENAI_OAUTH_BROWSER_EXTENSION_KEY"
 const root = dirname(dirname(fileURLToPath(import.meta.url)))
+const shared = join(root, "../../shared/browser-extension")
 const isDev = process.argv.includes("--dev")
 const distName = isDev ? "dist-dev" : "dist"
 const dist = join(root, distName)
@@ -70,10 +71,10 @@ copyFile(
 	join(root, "rules/openai-oauth-callback.json"),
 	join(dist, "rules/openai-oauth-callback.json"),
 )
-copyFile(join(root, "src/confirm.html"), join(dist, "src/confirm.html"))
-copyFile(join(root, "src/confirm.js"), join(dist, "src/confirm.js"))
+copyFile(join(shared, "confirm.html"), join(dist, "src/confirm.html"))
+copyFile(join(shared, "confirm.js"), join(dist, "src/confirm.js"))
 copyFile(join(root, "src/installed.json"), join(dist, "src/installed.json"))
-cpSync(join(root, "src/assets"), join(dist, "src/assets"), { recursive: true })
+cpSync(join(shared, "assets"), join(dist, "src/assets"), { recursive: true })
 
 console.log(
 	isDev

@@ -1,5 +1,5 @@
 {
-	"name": "@openai-oauth/browser-extension",
+	"name": "@openai-oauth/chrome-extension",
 	"version": "2.0.0-beta.1",
 	"private": true,
 	"description": "Browser helper for OpenAI OAuth web sign-in.",
@@ -7,7 +7,7 @@
 		"build": "node scripts/build.mjs",
 		"build:dev": "node scripts/build.mjs --dev",
 		"pack": "bun run build && rm -rf dist-pack && mkdir -p dist-pack && find dist -name .DS_Store -delete && cd dist && zip -r -X ../dist-pack/sign-in-with-chatgpt-0.0.2.zip .",
-		"typecheck": "echo 'No typecheck for browser-extension'",
-		"test": "echo 'No tests for browser-extension'"
+		"typecheck": "echo 'No typecheck for chrome-extension'",
+		"test": "echo 'No tests for chrome-extension'"
 	}
 }
