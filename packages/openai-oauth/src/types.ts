@@ -66,6 +66,18 @@ export type ChatRequest = {
 	max_tokens?: number
 	parallel_tool_calls?: boolean
 	reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high"
+	response_format?:
+		| {
+				type?: "json_object"
+		  }
+		| {
+				type?: "json_schema"
+				json_schema?: {
+					name?: string
+					description?: string
+					schema?: JsonObject
+				}
+		  }
 }
 
 export type ChatRequestSummary = {

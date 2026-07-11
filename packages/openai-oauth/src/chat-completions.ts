@@ -1,4 +1,4 @@
-import { generateText } from "ai"
+import { generateObject, generateText, jsonSchema } from "ai"
 import type { OpenAIOAuthProvider } from "../../openai-oauth-provider/src/index.js"
 import {
 	createToolSet,
@@ -21,9 +21,36 @@ import type {
 	OpenAIOAuthServerLogEvent,
 } from "./types.js"
 
+type ChatCompletionDeps = {
+	generateTextFn?: typeof generateText
+	generateObjectFn?: typeof generateObject
+}
+
 const isChatRequest = (value: unknown): value is ChatRequest =>
 	isRecord(value) &&
 	(value.messages === undefined || Array.isArray(value.messages))
+
+const toStructuredSchema = (
+	request: ChatRequest,
+): {
+	schema: ReturnType<typeof jsonSchema>
+	name?: string
+	description?: string
+} | undefined => {
+	const responseFormat = request.response_format
+	if (
+		responseFormat?.type !== "json_schema" ||
+		responseFormat.json_schema?.schema == null
+	) {
+		return undefined
+	}
+
+	return {
+		schema: jsonSchema(responseFormat.json_schema.schema),
+		name: responseFormat.json_schema.name,
+		description: responseFormat.json_schema.description,
+	}
+}
 
 const toChatCompletionResponse = (
 	result: ChatCompletionResultShape,
@@ -62,7 +89,10 @@ export const handleChatCompletionsRequest = async (
 	request: Request,
 	provider: OpenAIOAuthProvider,
 	logger: ((event: OpenAIOAuthServerLogEvent) => void) | undefined,
+	deps: ChatCompletionDeps = {},
 ): Promise<Response> => {
+	const generateTextFn = deps.generateTextFn ?? generateText
+	const generateObjectFn = deps.generateObjectFn ?? generateObject
 	const requestId = crypto.randomUUID()
 	const startedAt = Date.now()
 	const body = await request.json()
@@ -94,27 +124,50 @@ export const handleChatCompletionsRequest = async (
 	}
 
 	try {
-		const result = await generateText({
-			model: provider(body.model ?? "gpt-5.2"),
-			messages: toModelMessages(body.messages),
-			tools: createToolSet(body.tools),
-			toolChoice: toToolChoice(body.tool_choice),
-			temperature: body.temperature,
-			topP: body.top_p,
-			stopSequences:
-				typeof body.stop === "string"
-					? [body.stop]
-					: Array.isArray(body.stop)
-						? body.stop
-						: undefined,
-			maxOutputTokens: body.max_tokens,
-			providerOptions: {
-				openai: {
-					parallelToolCalls: body.parallel_tool_calls,
-					reasoningEffort: body.reasoning_effort,
-				},
-			},
-		})
+		const structuredSchema = toStructuredSchema(body)
+		const result: ChatCompletionResultShape =
+			structuredSchema != null
+				? await generateObjectFn({
+						model: provider(body.model ?? "gpt-5.2"),
+						messages: toModelMessages(body.messages),
+						temperature: body.temperature,
+						topP: body.top_p,
+						maxOutputTokens: body.max_tokens,
+						schema: structuredSchema.schema,
+						schemaName: structuredSchema.name,
+						schemaDescription: structuredSchema.description,
+						providerOptions: {
+							openai: {
+								reasoningEffort: body.reasoning_effort,
+							},
+						},
+				  }).then((structuredResult) => ({
+						text: JSON.stringify(structuredResult.object),
+						finishReason: structuredResult.finishReason,
+						toolCalls: [],
+						usage: structuredResult.usage,
+				  }))
+				: await generateTextFn({
+						model: provider(body.model ?? "gpt-5.2"),
+						messages: toModelMessages(body.messages),
+						tools: createToolSet(body.tools),
+						toolChoice: toToolChoice(body.tool_choice),
+						temperature: body.temperature,
+						topP: body.top_p,
+						stopSequences:
+							typeof body.stop === "string"
+								? [body.stop]
+								: Array.isArray(body.stop)
+									? body.stop
+									: undefined,
+						maxOutputTokens: body.max_tokens,
+						providerOptions: {
+							openai: {
+								parallelToolCalls: body.parallel_tool_calls,
+								reasoningEffort: body.reasoning_effort,
+							},
+						},
+				  })
 
 		emitRequestLog(logger, {
 			type: "chat_response",
