@@ -1,4 +1,4 @@
-const REGISTRY_URL = "https://registry.npmjs.org/openai-oauth/latest"
+const registryUrl = "https://registry.npmjs.org/openai-oauth/latest"
 
 type RegistryPackageResponse = {
 	version?: unknown
@@ -15,13 +15,15 @@ const normalizeVersion = (value: string | undefined): string | undefined => {
 		return undefined
 	}
 
-	const match = value.trim().match(/^\d+\.\d+\.\d+$/)
+	const match = value.trim().match(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/)
 	return match?.[0]
 }
 
 const compareSemver = (left: string, right: string): number => {
-	const leftParts = left.split(".").map(Number)
-	const rightParts = right.split(".").map(Number)
+	const [leftCore = "", leftPrerelease] = left.split("-", 2)
+	const [rightCore = "", rightPrerelease] = right.split("-", 2)
+	const leftParts = leftCore.split(".").map(Number)
+	const rightParts = rightCore.split(".").map(Number)
 
 	for (let index = 0; index < 3; index += 1) {
 		const leftPart = leftParts[index] ?? 0
@@ -32,6 +34,33 @@ const compareSemver = (left: string, right: string): number => {
 		if (leftPart > rightPart) {
 			return 1
 		}
+	}
+
+	if (leftPrerelease == null) return rightPrerelease == null ? 0 : 1
+	if (rightPrerelease == null) return -1
+
+	const leftIdentifiers = leftPrerelease.split(".")
+	const rightIdentifiers = rightPrerelease.split(".")
+	const length = Math.max(leftIdentifiers.length, rightIdentifiers.length)
+	for (let index = 0; index < length; index += 1) {
+		const leftIdentifier = leftIdentifiers[index]
+		const rightIdentifier = rightIdentifiers[index]
+		if (leftIdentifier == null) return -1
+		if (rightIdentifier == null) return 1
+		if (leftIdentifier === rightIdentifier) continue
+
+		const leftNumber = /^\d+$/.test(leftIdentifier)
+			? Number(leftIdentifier)
+			: undefined
+		const rightNumber = /^\d+$/.test(rightIdentifier)
+			? Number(rightIdentifier)
+			: undefined
+		if (leftNumber != null && rightNumber != null) {
+			return leftNumber < rightNumber ? -1 : 1
+		}
+		if (leftNumber != null) return -1
+		if (rightNumber != null) return 1
+		return leftIdentifier < rightIdentifier ? -1 : 1
 	}
 
 	return 0
@@ -51,7 +80,7 @@ const fetchLatestVersion = async (
 			requestInit.signal = signal
 		}
 
-		const response = await fetchImpl(REGISTRY_URL, requestInit)
+		const response = await fetchImpl(registryUrl, requestInit)
 
 		if (!response.ok) {
 			return undefined
@@ -74,7 +103,6 @@ export const checkForOpenAIOAuthUpdates = async (
 	if (normalizedCurrentVersion == null) {
 		return
 	}
-
 	const abortController = new AbortController()
 	const timeout = setTimeout(() => {
 		abortController.abort()

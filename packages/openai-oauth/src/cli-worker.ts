@@ -1,5 +1,3 @@
-import { createCodexOAuthClient } from "@openai-oauth/core"
-import { openaiCredentials } from "@openai-oauth/local"
 import { cliMessages } from "./cli-logging.js"
 import {
 	type ActiveCliRuntime,
@@ -11,7 +9,6 @@ import {
 	sendDetachedReady,
 	sendRemoteStopping,
 } from "./cli-runtime.js"
-import { resolveOpenAIOAuthModels } from "./models.js"
 import { startOpenAIOAuthServer } from "./server.js"
 import type {
 	OpenAIOAuthServerOptions,
@@ -44,13 +41,6 @@ const startCliInstance = async (
 	let server: RunningOpenAIOAuthServer | undefined
 
 	try {
-		const auth = openaiCredentials(options)
-		const client = createCodexOAuthClient({
-			...options,
-			auth: () => auth.getSession(),
-			responsesState: false as const,
-		})
-		const models = await resolveOpenAIOAuthModels(client, options.models)
 		server = await startOpenAIOAuthServer(options)
 		const runtime = await activateCliRuntime(lock, {
 			mode,
@@ -58,7 +48,7 @@ const startCliInstance = async (
 			version,
 			onStop: onRemoteStop,
 		})
-		return { server, runtime, models }
+		return { server, runtime, models: server.models }
 	} catch (error) {
 		await server?.close().catch(() => undefined)
 		await lock.release()

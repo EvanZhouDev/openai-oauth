@@ -13,6 +13,7 @@ describe("node server runtime", () => {
 		const running = await startOpenAIOAuthServer({
 			host: "127.0.0.1",
 			port: 0,
+			models: ["gpt-5.4-mini"],
 		})
 		close = running.close
 

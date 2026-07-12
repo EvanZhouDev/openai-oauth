@@ -1,1 +1,3 @@
-export const packageVersion = "2.0.0-beta.3"
+import packageMetadata from "../package.json" with { type: "json" }
+
+export const packageVersion = packageMetadata.version

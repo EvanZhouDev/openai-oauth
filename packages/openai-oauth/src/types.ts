@@ -131,6 +131,7 @@ export type RunningOpenAIOAuthServer = {
 	host: string
 	port: number
 	url: string
+	models: string[]
 	close: () => Promise<void>
 }
 

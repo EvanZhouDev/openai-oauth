@@ -21,12 +21,6 @@ export const sseHeaders = {
 	"x-accel-buffering": "no",
 }
 
-export const corsHeaders = {
-	"access-control-allow-origin": "*",
-	"access-control-allow-methods": "GET,POST,OPTIONS",
-	"access-control-allow-headers": "authorization,content-type",
-}
-
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value)
 
@@ -56,7 +50,6 @@ export const toJsonResponse = (body: unknown, status = 200): Response =>
 		status,
 		headers: {
 			...jsonHeaders,
-			...corsHeaders,
 		},
 	})
 
@@ -128,19 +121,10 @@ export const summarizeChatRequest = (request: {
 	toolCount: request.tools?.length ?? 0,
 })
 
-export const resolveModels = (
-	models: string[] | undefined,
-): string[] | undefined =>
-	Array.isArray(models) && models.length > 0 ? [...models] : undefined
-
 export const copyUpstreamResponse = (response: Response): Response => {
 	const headers = new Headers(response.headers)
 	headers.delete("content-encoding")
 	headers.delete("content-length")
-	for (const [key, value] of Object.entries(corsHeaders)) {
-		headers.set(key, value)
-	}
-
 	if (!headers.has("content-type")) {
 		headers.set("content-type", "application/json; charset=utf-8")
 	}
@@ -151,9 +135,7 @@ export const copyUpstreamResponse = (response: Response): Response => {
 	})
 }
 
-export const readNodeBody = async (
-	request: IncomingMessage,
-): Promise<Uint8Array> => {
+const readNodeBody = async (request: IncomingMessage): Promise<Uint8Array> => {
 	const chunks: Buffer[] = []
 
 	for await (const chunk of request) {
@@ -163,7 +145,7 @@ export const readNodeBody = async (
 	return Buffer.concat(chunks)
 }
 
-export const toHeaders = (headers: IncomingHttpHeaders): Headers => {
+const toHeaders = (headers: IncomingHttpHeaders): Headers => {
 	const nextHeaders = new Headers()
 
 	for (const [key, value] of Object.entries(headers)) {

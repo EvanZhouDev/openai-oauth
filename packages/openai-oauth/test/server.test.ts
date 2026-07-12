@@ -191,6 +191,18 @@ describe("openai oauth server", () => {
 		})
 	})
 
+	test("does not opt the local proxy into browser CORS", async () => {
+		const handler = createOpenAIOAuthFetchHandler()
+		const response = await handler(
+			new Request("http://localhost/health", {
+				headers: { Origin: "https://app.example" },
+			}),
+		)
+
+		expect(response.status).toBe(200)
+		expect(response.headers.has("access-control-allow-origin")).toBe(false)
+	})
+
 	test("aggregates streaming responses requests into json when stream is false", async () => {
 		const authFilePath = await createAuthFile()
 		const fetch = vi.fn(async (input: RequestInfo | URL) => {

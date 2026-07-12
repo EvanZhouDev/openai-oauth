@@ -1,7 +1,4 @@
-import type { CodexOAuthClient } from "@openai-oauth/core"
-
-const MODELS_CACHE_TTL_MS = 5 * 60 * 1000
-const IMAGE_MODEL_ID = "gpt-image-2"
+import type { OpenAIOAuthTransport } from "@openai-oauth/core"
 
 type ModelResolver = () => Promise<string[]>
 
@@ -9,8 +6,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value)
 
 const uniqueStrings = (values: string[]): string[] => [...new Set(values)]
-const withImageModel = (models: string[]): string[] =>
-	uniqueStrings([...models, IMAGE_MODEL_ID])
 
 const modelListError = (bodyText: string): string => {
 	try {
@@ -27,7 +22,9 @@ const modelListError = (bodyText: string): string => {
 	return bodyText || "Failed to load models from Codex."
 }
 
-const readModelList = async (client: CodexOAuthClient): Promise<string[]> => {
+const readModelList = async (
+	client: OpenAIOAuthTransport,
+): Promise<string[]> => {
 	const response = await client.request("/models")
 	const bodyText = await response.text()
 
@@ -55,47 +52,21 @@ const readModelList = async (client: CodexOAuthClient): Promise<string[]> => {
 		throw new Error("Codex returned an empty models list.")
 	}
 
-	return withImageModel(models)
+	return models
 }
 
 export const resolveOpenAIOAuthModels = async (
-	client: CodexOAuthClient,
+	client: OpenAIOAuthTransport,
 	configuredModels: string[] | undefined,
 ): Promise<string[]> =>
 	Array.isArray(configuredModels) && configuredModels.length > 0
 		? uniqueStrings(configuredModels)
 		: readModelList(client)
 
-export const createModelResolver = (
-	client: CodexOAuthClient,
-	configuredModels: string[] | undefined,
-): ModelResolver => {
-	let cachedModels: string[] | undefined
-	let cacheExpiresAt = 0
-	let inflight: Promise<string[]> | undefined
-
-	return async () => {
-		const now = Date.now()
-		if (cachedModels && now < cacheExpiresAt) {
-			return [...cachedModels]
-		}
-
-		if (inflight) {
-			return [...(await inflight)]
-		}
-
-		inflight = resolveOpenAIOAuthModels(client, configuredModels)
-			.then((models) => {
-				cachedModels = models
-				cacheExpiresAt = Date.now() + MODELS_CACHE_TTL_MS
-				inflight = undefined
-				return models
-			})
-			.catch((error) => {
-				inflight = undefined
-				throw error
-			})
-
-		return [...(await inflight)]
-	}
-}
+export const createModelResolver =
+	(
+		client: OpenAIOAuthTransport,
+		configuredModels: string[] | undefined,
+	): ModelResolver =>
+	() =>
+		resolveOpenAIOAuthModels(client, configuredModels)

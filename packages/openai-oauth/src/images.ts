@@ -1,9 +1,9 @@
-import type { CodexOAuthClient } from "@openai-oauth/core"
+import type { OpenAIOAuthTransport } from "@openai-oauth/core"
 import { copyUpstreamResponse, toErrorResponse } from "./shared.js"
 
 export const handleImageGenerationRequest = async (
 	request: Request,
-	client: CodexOAuthClient,
+	client: OpenAIOAuthTransport,
 ): Promise<Response> => {
 	const upstream = await client.request("/images/generations", {
 		method: "POST",
@@ -16,7 +16,7 @@ export const handleImageGenerationRequest = async (
 
 export const handleImageEditRequest = async (
 	request: Request,
-	client: CodexOAuthClient,
+	client: OpenAIOAuthTransport,
 ): Promise<Response> => {
 	if (!request.headers.get("content-type")?.includes("multipart/form-data")) {
 		return toErrorResponse(

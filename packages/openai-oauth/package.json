@@ -11,6 +11,9 @@
 		"openai-compatible"
 	],
 	"type": "module",
+	"engines": {
+		"node": ">=20"
+	},
 	"sideEffects": false,
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -42,14 +45,14 @@
 		"@openai-oauth/core": "workspace:*",
 		"@openai-oauth/local": "workspace:*",
 		"ai": "6.0.116",
-		"yargs": "^17.7.2"
+		"yargs": "17.7.3"
 	},
 	"devDependencies": {
 		"@ai-sdk/openai": "3.0.41",
 		"@types/node": "20.17.24",
 		"@types/yargs": "^17.0.33",
-		"typescript": "latest",
-		"vitest": "latest",
+		"typescript": "5.9.2",
+		"vitest": "4.1.10",
 		"zod": "^3.25.76"
 	},
 	"author": "EvanZhouDev",

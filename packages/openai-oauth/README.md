@@ -50,9 +50,11 @@ Common flags:
 | Host binding | `--host` | `127.0.0.1` |
 | Port | `--port` | `10531` |
 | Model allowlist | `--models` | Account-specific Codex models discovered from ChatGPT |
-| Auth file path | `--oauth-file` | `$CHATGPT_LOCAL_HOME/auth.json`, `$CODEX_HOME/auth.json`, `~/.chatgpt-local/auth.json`, or `~/.codex/auth.json` |
+| Auth file path | `--oauth-file` | `$CODEX_HOME/auth.json` or `~/.codex/auth.json` |
 | Open browser | `--open` / `--no-open` | `--open` |
 | Login timeout | `--login-timeout-ms` | `300000` |
+
+Binding `--host` beyond loopback exposes the proxy to your network. Anyone who can reach that port can make requests with your ChatGPT account.
 
 Login listens on loopback and uses `http://localhost:1455/auth/callback`, the local callback URL accepted by OpenAI OAuth.
 

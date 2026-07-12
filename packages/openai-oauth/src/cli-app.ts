@@ -3,7 +3,7 @@ import { createInterface } from "node:readline/promises"
 import {
 	resolveAuthFileCandidates,
 	resolveCodexAuthFilePath,
-} from "@openai-oauth/core"
+} from "@openai-oauth/local/auth-file"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
 import {
@@ -30,6 +30,8 @@ import { runOpenAIOAuthLogin } from "./login.js"
 import { DEFAULT_PORT } from "./shared.js"
 import { checkForOpenAIOAuthUpdates } from "./update-check.js"
 import { packageVersion } from "./version.js"
+
+const cliCommand = "npx openai-oauth@latest"
 
 export type CliArgs = {
 	command: "serve" | "login" | "logs" | "status" | "stop"
@@ -75,12 +77,12 @@ const helpLines = [
 	"Free OpenAI API access with your ChatGPT account.",
 	"",
 	"Usage",
-	"  npx openai-oauth@latest [options]",
-	"  npx openai-oauth@latest --detach [options]",
-	"  npx openai-oauth@latest status",
-	"  npx openai-oauth@latest logs [--follow]",
-	"  npx openai-oauth@latest stop",
-	"  npx openai-oauth@latest login [options]",
+	`  ${cliCommand} [options]`,
+	`  ${cliCommand} --detach [options]`,
+	`  ${cliCommand} status`,
+	`  ${cliCommand} logs [--follow]`,
+	`  ${cliCommand} stop`,
+	`  ${cliCommand} login [options]`,
 	"",
 	"Options",
 	"  --host <host>              Proxy host. Login callback always listens on loopback.",
@@ -333,6 +335,14 @@ const runUpdateCheck = () =>
 	checkForOpenAIOAuthUpdates(packageVersion, {
 		onWarning: defaultUpdateCheckWarning,
 	})
+
+const warnAboutNetworkBinding = (host: string | undefined): void => {
+	if (host && host !== "127.0.0.1" && host !== "localhost" && host !== "::1") {
+		console.warn(
+			`Warning: --host ${host} exposes OpenAI OAuth to your network. Anyone who can reach this port can make requests with your ChatGPT account.`,
+		)
+	}
+}
 
 const createLoginCancellation = (): LoginCancellation => {
 	const abortController = new AbortController()
@@ -681,6 +691,7 @@ export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 
 	const updateCheck = runUpdateCheck()
 	const options = toServerOptions(args)
+	warnAboutNetworkBinding(options.host)
 	const existingAuthFile = await findExistingAuthFile(options.authFilePath)
 	if (!existingAuthFile) {
 		await updateCheck

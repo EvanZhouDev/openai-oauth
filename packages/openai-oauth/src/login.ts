@@ -5,9 +5,11 @@ import { type AddressInfo, createConnection } from "node:net"
 import {
 	createOpenAIOAuthRequest,
 	exchangeOpenAIOAuthCode,
+} from "@openai-oauth/core"
+import {
 	type SavedAuthTokens,
 	saveAuthTokens,
-} from "@openai-oauth/core"
+} from "@openai-oauth/local/auth-file"
 import callbackSuccessHtml from "./callback-success.html?raw"
 
 const DEFAULT_LOGIN_REDIRECT_HOST = "localhost"
@@ -53,27 +55,13 @@ type LoginServer = Server<typeof IncomingMessage, typeof ServerResponse>
 const createLoginCancelledError = (): Error =>
 	new Error("OpenAI OAuth login cancelled.")
 
-const toCallbackHtml = (
-	title: string,
-	message: string,
-): string => `<!doctype html>
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<title>${title}</title>
-		<style>
-			body {
-				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-				margin: 3rem;
-				line-height: 1.5;
-			}
-		</style>
-	</head>
-	<body>
-		<h1>${title}</h1>
-		<p>${message}</p>
-	</body>
-</html>`
+const toCallbackHtml = (title: string, message: string): string =>
+	callbackSuccessHtml
+		.replace("Sign-in complete", title)
+		.replace(
+			/Your ChatGPT credentials are saved locally\. You can close this\s+window and return to your terminal\./,
+			message,
+		)
 
 const htmlHeaders = {
 	"Content-Type": "text/html; charset=utf-8",
