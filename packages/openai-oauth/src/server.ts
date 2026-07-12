@@ -87,7 +87,6 @@ export const createOpenAIOAuthFetchHandler = (
 ): ((request: Request) => Promise<Response>) => {
 	const sharedSettings: CodexOAuthSettings = {
 		...settings,
-		responsesState: false,
 	}
 	const client = createCodexOAuthClient(sharedSettings)
 	const provider = createOpenAIOAuth(sharedSettings)

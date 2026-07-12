@@ -10,7 +10,6 @@ import {
 	sseHeaders,
 	toErrorResponse,
 	toJsonResponse,
-	usesServerReplayState,
 } from "./shared.js"
 import type { OpenAIOAuthServerOptions } from "./types.js"
 
@@ -22,12 +21,6 @@ export const handleResponsesRequest = async (
 	const body = await request.json()
 	if (!isRecord(body)) {
 		return toErrorResponse("Request body must be a JSON object.")
-	}
-
-	if (usesServerReplayState(body)) {
-		return toErrorResponse(
-			"Stateless Codex responses endpoint does not support `previous_response_id` or `item_reference`. Replay the full conversation history in `input` on each request.",
-		)
 	}
 
 	const wantsStream = body.stream === true
