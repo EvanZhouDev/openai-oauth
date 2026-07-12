@@ -203,7 +203,7 @@ The CLI also supports a few configuration options that generally do not need to 
       <td>Host binding</td>
       <td><code>--host</code></td>
       <td><code>127.0.0.1</code></td>
-      <td>Host interface the local proxy binds to.</td>
+      <td>Host interface the local proxy binds to. Non-loopback hosts expose the proxy to your network.</td>
     </tr>
     <tr>
       <td>Port</td>
@@ -211,13 +211,13 @@ The CLI also supports a few configuration options that generally do not need to 
       <td><code>10531</code></td>
       <td>Port the local proxy binds to.</td>
     </tr>
-    <tr>
-      <td>Model allowlist</td>
+	<tr>
+	  <td>Model allowlist</td>
       <td><code>--models</code></td>
       <td>Account-specific Codex models discovered from ChatGPT</td>
       <td>Comma-separated list of model ids exposed by <code>/v1/models</code>. When omitted, the CLI discovers the models your account has access to.</td>
     </tr>
-    <tr>
+	<tr>
       <td>Codex client version</td>
       <td><code>--codex-version</code></td>
       <td>Latest <code>@openai/codex</code> from npm, with a bundled fallback</td>
@@ -244,14 +244,14 @@ The CLI also supports a few configuration options that generally do not need to 
     <tr>
       <td>Auth file path</td>
       <td><code>--oauth-file</code></td>
-      <td><code>--oauth-file</code> path if provided, otherwise <code>$CHATGPT_LOCAL_HOME/auth.json</code>, <code>$CODEX_HOME/auth.json</code>, <code>~/.chatgpt-local/auth.json</code>, <code>~/.codex/auth.json</code></td>
+	  <td><code>--oauth-file</code> path if provided, otherwise <code>$CODEX_HOME/auth.json</code> or <code>~/.codex/auth.json</code></td>
       <td>Override where the local OAuth auth file is discovered.</td>
     </tr>
     <tr>
       <td>Open browser</td>
       <td><code>--open</code> / <code>--no-open</code></td>
       <td><code>--open</code></td>
-      <td>Open the login URL in a browser during <code>npx openai-oauth login</code>. Use <code>--no-open</code> to print the URL instead.</td>
+	  <td>Open the login URL in a browser during <code>npx openai-oauth login</code>. Use <code>--no-open</code> to print the URL instead.</td>
     </tr>
     <tr>
       <td>Login timeout</td>
@@ -558,7 +558,7 @@ function CustomLogin() {
 	const login = useSignInWithChatGPT();
 
 	if (login.status === "signed-in") {
-		return <button onClick={() => void login.logout()}>Disconnect</button>;
+		return <button onClick={login.logout}>Disconnect</button>;
 	}
 
 	if (login.status === "needs-extension") {
@@ -567,14 +567,14 @@ function CustomLogin() {
 				<a href={login.installUrl} rel="noreferrer" target="_blank">
 					Install Sign in with ChatGPT
 				</a>
-				<button onClick={() => void login.login()}>Try again</button>
+				<button onClick={login.login}>Try again</button>
 				<button onClick={login.reset}>Cancel</button>
 			</div>
 		);
 	}
 
 	return (
-		<button onClick={() => void login.login()}>Sign in with ChatGPT</button>
+		<button onClick={login.login}>Sign in with ChatGPT</button>
 	);
 }
 ```
@@ -595,12 +595,12 @@ By using the same Oauth tokens as Codex, we can effectively use OpenAI's API thr
 
 # Legal
 
-This is an unofficial, community-maintained project and is not affiliated with, endorsed by, or sponsored by OpenAI, Inc.
+OpenAI OAuth is an unofficial, community-maintained project and is not affiliated with, endorsed by, or sponsored by OpenAI.
 
-It uses your local Codex/ChatGPT authentication cache (auth.json, e.g. ~/.codex/auth.json) and should be treated like password-equivalent credentials.
+OpenAI OAuth uses ChatGPT credentials, which should be treated like passwords.
 
-Use only for personal, local experimentation on trusted machines; do not run as a hosted service, do not share access, and do not pool or redistribute tokens.
+Each person must use their own ChatGPT account and keep credentials private. Do not pool, share, or redistribute access tokens. Apps offering Sign in with ChatGPT must protect each user's credentials and use them only for requests that user authorizes.
 
-You are solely responsible for complying with OpenAI’s Terms, policies, and any applicable agreements; misuse may result in rate limits, suspension, or termination.
+You are responsible for complying with OpenAI's [Terms of Use](https://openai.com/policies/terms-of-use/), [Usage Policies](https://openai.com/policies/usage-policies/), and any agreement that applies to your account. Do not bypass rate limits, restrictions, or safeguards.
 
-Provided “as is” with no warranties; you assume all risk for data exposure, costs, and account actions.
+Provided as-is with no warranties. OpenAI may change or disable the underlying services at any time, and you assume the risks of using this project.
