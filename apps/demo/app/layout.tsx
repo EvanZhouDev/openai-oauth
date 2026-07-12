@@ -15,17 +15,13 @@ export const metadata: Metadata = {
 	icons: {
 		icon: [
 			{
-				url: "/openai-oauth-logo.svg",
-				type: "image/svg+xml",
-			},
-			{
 				sizes: "32x32",
 				type: "image/png",
 				url: "/favicon-32x32.png",
 			},
 		],
 		apple: "/apple-touch-icon.png",
-		shortcut: "/openai-oauth-logo.svg",
+		shortcut: "/favicon-32x32.png",
 	},
 	openGraph: {
 		description: "Free OpenAI API access with your ChatGPT account.",
