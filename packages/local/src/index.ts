@@ -7,7 +7,7 @@ import {
 	type AuthLoaderOptions,
 	type EffectiveAuth,
 	loadAuthTokens,
-} from "@openai-oauth/core"
+} from "./auth-file.js"
 
 export type LocalOpenAIOAuthOptions = Omit<AuthLoaderOptions, "fetch"> & {
 	fetch?: FetchFunction
@@ -51,18 +51,6 @@ export const openaiCredentials = (
 				authFilePath: options.authFilePath,
 				clientId: options.clientId,
 				ensureFresh: options.ensureFresh,
-				fetch: pickFetch(options.fetch),
-				issuer: options.issuer,
-				now: options.now,
-				tokenUrl: options.tokenUrl,
-			}),
-		),
-	refreshSession: async () =>
-		toSession(
-			await loadAuthTokens({
-				authFilePath: options.authFilePath,
-				clientId: options.clientId,
-				ensureFresh: true,
 				fetch: pickFetch(options.fetch),
 				issuer: options.issuer,
 				now: options.now,
