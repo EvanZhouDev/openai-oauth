@@ -4,32 +4,25 @@ import "./styles.css"
 
 const siteUrl =
 	process.env.NEXT_PUBLIC_SITE_URL ??
-	(process.env.VERCEL_URL
-		? `https://${process.env.VERCEL_URL}`
-		: "http://localhost:1455")
+	(process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined)
 
 export const metadata: Metadata = {
-	metadataBase: new URL(siteUrl),
+	metadataBase: siteUrl ? new URL(siteUrl) : undefined,
 	title: "OpenAI OAuth",
 	description: "Free OpenAI API access with your ChatGPT account.",
 	icons: {
 		icon: [
 			{
-				url: "/openai-oauth-logo.svg",
-				type: "image/svg+xml",
+				sizes: "32x32",
+				url: "/favicon-32x32.png",
+				type: "image/png",
 			},
 		],
+		apple: "/apple-touch-icon.png",
+		shortcut: "/favicon-32x32.png",
 	},
 	openGraph: {
 		description: "Free OpenAI API access with your ChatGPT account.",
-		images: [
-			{
-				alt: "OpenAI OAuth",
-				height: 640,
-				url: "/opengraph.png",
-				width: 1280,
-			},
-		],
 		siteName: "OpenAI OAuth",
 		title: "OpenAI OAuth",
 		type: "website",
@@ -38,12 +31,6 @@ export const metadata: Metadata = {
 	twitter: {
 		card: "summary_large_image",
 		description: "Free OpenAI API access with your ChatGPT account.",
-		images: [
-			{
-				alt: "OpenAI OAuth",
-				url: "/opengraph.png",
-			},
-		],
 		title: "OpenAI OAuth",
 	},
 }
