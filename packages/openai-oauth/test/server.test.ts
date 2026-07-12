@@ -120,6 +120,12 @@ describe("openai oauth server", () => {
 					created: 0,
 					owned_by: "codex-oauth",
 				},
+				{
+					id: "gpt-image-2",
+					object: "model",
+					created: 0,
+					owned_by: "codex-oauth",
+				},
 			],
 		})
 
@@ -351,6 +357,85 @@ describe("openai oauth server", () => {
 
 		expect(response.status).toBe(400)
 		expect(fetch).not.toHaveBeenCalled()
+	})
+
+	test("exposes OpenAI-compatible image generation and edit routes", async () => {
+		const authFilePath = await createAuthFile()
+		const requests: Array<{ path: string; body: Record<string, unknown> }> = []
+		const fetch = vi.fn(
+			async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = new URL(String(input))
+				requests.push({
+					path: url.pathname,
+					body: JSON.parse(String(init?.body)),
+				})
+				return Response.json(
+					{
+						created: 1,
+						data: [{ b64_json: "AQID" }],
+						usage: { input_tokens: 2, output_tokens: 3, total_tokens: 5 },
+					},
+					{
+						headers: {
+							"content-encoding": "gzip",
+							"content-length": "999",
+						},
+					},
+				)
+			},
+		)
+		const handler = createOpenAIOAuthFetchHandler({
+			authFilePath,
+			ensureFresh: false,
+			fetch,
+		})
+
+		const generated = await handler(
+			new Request("http://localhost/v1/images/generations", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ prompt: "draw a square" }),
+			}),
+		)
+		const editBody = new FormData()
+		editBody.set("prompt", "add a red hat")
+		editBody.set(
+			"image",
+			new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" }),
+			"input.png",
+		)
+		const edited = await handler(
+			new Request("http://localhost/v1/images/edits", {
+				method: "POST",
+				body: editBody,
+			}),
+		)
+
+		expect(generated.status).toBe(200)
+		expect(edited.status).toBe(200)
+		expect(generated.headers.get("content-encoding")).toBeNull()
+		expect(generated.headers.get("content-length")).toBeNull()
+		await expect(generated.json()).resolves.toMatchObject({
+			data: [{ b64_json: "AQID" }],
+			usage: { total_tokens: 5 },
+		})
+		await expect(edited.json()).resolves.toMatchObject({
+			data: [{ b64_json: "AQID" }],
+		})
+		expect(requests).toEqual([
+			{
+				path: "/backend-api/codex/images/generations",
+				body: { model: "gpt-image-2", prompt: "draw a square" },
+			},
+			{
+				path: "/backend-api/codex/images/edits",
+				body: {
+					images: [{ image_url: "data:image/png;base64,AQID" }],
+					model: "gpt-image-2",
+					prompt: "add a red hat",
+				},
+			},
+		])
 	})
 
 	test("emits a chat error log when messages is invalid", async () => {

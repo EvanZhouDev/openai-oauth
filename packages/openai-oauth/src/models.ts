@@ -1,6 +1,7 @@
 import type { CodexOAuthClient } from "@openai-oauth/core"
 
 const MODELS_CACHE_TTL_MS = 5 * 60 * 1000
+const IMAGE_MODEL_ID = "gpt-image-2"
 
 type ModelResolver = () => Promise<string[]>
 
@@ -8,6 +9,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === "object" && value !== null && !Array.isArray(value)
 
 const uniqueStrings = (values: string[]): string[] => [...new Set(values)]
+const withImageModel = (models: string[]): string[] =>
+	uniqueStrings([...models, IMAGE_MODEL_ID])
 
 const modelListError = (bodyText: string): string => {
 	try {
@@ -52,7 +55,7 @@ const readModelList = async (client: CodexOAuthClient): Promise<string[]> => {
 		throw new Error("Codex returned an empty models list.")
 	}
 
-	return models
+	return withImageModel(models)
 }
 
 export const resolveOpenAIOAuthModels = async (

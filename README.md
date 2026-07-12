@@ -24,6 +24,7 @@
 >
 > - [**Credential Sources**](#sdk-overview): Get credentials from user sign-in, locally, or somewhere else
 > - [**Client Adapters**](#client-adapters): Use those credentials with Vercel AI SDK, OpenAI Client, or any OpenAI-compatible client
+> - [**Image Generation**](#image-generation): Generate and edit images with GPT Image 2
 > - [**CLI Login**](#openai-oauth-cli): You can now login via `npx openai-oauth`
 > - [**Cleaner Package Architecture**](#sdk-overview): Separate packages for CLI, credentials, clients, and more
 
@@ -435,6 +436,50 @@ const client = new OpenAI({
 });
 ```
 
+## Image Generation
+
+Generate and edit images with GPT Image 2 using the same ChatGPT credentials and client adapters.
+
+The dev proxy exposes the OpenAI-compatible `/v1/images/generations` and `/v1/images/edits` endpoints:
+
+```bash
+curl http://127.0.0.1:10531/v1/images/generations \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-image-2","prompt":"A tiny house in a forest"}'
+```
+
+With Vercel AI SDK:
+
+```ts
+import { createOpenAIOAuth } from "@openai-oauth/ai-sdk";
+import { openaiCredentials } from "@openai-oauth/local";
+import { generateImage } from "ai";
+
+const openai = createOpenAIOAuth(openaiCredentials());
+
+const result = await generateImage({
+	model: openai.image("gpt-image-2"),
+	prompt: "A tiny house in a forest",
+});
+```
+
+With the OpenAI JavaScript SDK:
+
+```ts
+import { createOpenAIOptions } from "@openai-oauth/openai-client";
+import { openaiCredentials } from "@openai-oauth/local";
+import OpenAI from "openai";
+
+const client = new OpenAI(createOpenAIOptions(openaiCredentials()));
+
+const result = await client.images.generate({
+	model: "gpt-image-2",
+	prompt: "A tiny house in a forest",
+});
+```
+
+Image editing uses the same clients through `generateImage()` or `client.images.edit()`. Image streaming, masks, custom output formats, and variations are not currently supported.
+
 ## Sign in with ChatGPT Setup
 
 Use `SignInWithChatGPT` when users should sign in with their own ChatGPT account.
@@ -539,13 +584,13 @@ function CustomLogin() {
 
 What is intentionally not there yet:
 
-- Only LLMs supported by Codex are available. This lists updates over time and is dependent on your Codex plan.
+- Only models supported by Codex are available. This list updates over time and depends on your ChatGPT plan.
 - There is no stateful replay support on the CLI `/v1/responses` endpoint. The proxy is stateless and expects callers to send the full conversation history.
 - Hosted browser sign-in currently supports Chrome and Firefox. Safari is not yet supported.
 
 ## How it Works
 
-OpenAI's Codex CLI uses an endpoint at `chatgpt.com/backend-api/codex/responses` to let you use special OpenAI rate limits tied to your ChatGPT account.
+OpenAI's Codex CLI uses authenticated endpoints at `chatgpt.com/backend-api/codex` to run models with your ChatGPT account.
 
 By using the same Oauth tokens as Codex, we can effectively use OpenAI's API through Oauth instead of buying API credits.
 

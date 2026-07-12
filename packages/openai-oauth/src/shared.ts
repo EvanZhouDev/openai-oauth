@@ -135,6 +135,8 @@ export const resolveModels = (
 
 export const copyUpstreamResponse = (response: Response): Response => {
 	const headers = new Headers(response.headers)
+	headers.delete("content-encoding")
+	headers.delete("content-length")
 	for (const [key, value] of Object.entries(corsHeaders)) {
 		headers.set(key, value)
 	}

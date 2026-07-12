@@ -9,7 +9,7 @@ Turn your ChatGPT account into an OpenAI-compatible local API.
 
 OpenAI-compatible endpoint ready at http://127.0.0.1:10531/v1
 Use this as your OpenAI base URL. No API key is required.
-Available Models: gpt-5.6-sol, gpt-5.6-terra, ...
+Available Models: gpt-5.6-sol, gpt-5.6-terra, gpt-image-2, ...
 
 [d] Run in background  [q] Quit
 ```
@@ -31,7 +31,17 @@ Supported endpoints:
 
 - `/v1/responses`
 - `/v1/chat/completions`
+- `/v1/images/generations`
+- `/v1/images/edits`
 - `/v1/models`
+
+Image generation uses JSON requests. Image editing uses the standard OpenAI multipart request with one or more `image` fields. Both return base64 image data and usage metadata.
+
+```bash
+curl http://127.0.0.1:10531/v1/images/generations \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-image-2","prompt":"A tiny house in a forest","quality":"low"}'
+```
 
 Common flags:
 

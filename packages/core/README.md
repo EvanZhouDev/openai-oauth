@@ -27,6 +27,8 @@ const baseURL = transport.baseURL;
 const fetch = transport.fetch;
 ```
 
+The transport supports Responses, Chat Completions, model discovery, image generation, and multipart image editing.
+
 Create an OAuth request:
 
 ```ts

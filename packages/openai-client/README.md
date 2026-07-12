@@ -18,6 +18,23 @@ import OpenAI from "openai";
 const client = new OpenAI(createOpenAIOptions(openaiCredentials()));
 ```
 
+The standard OpenAI image APIs work with GPT Image 2:
+
+```ts
+import fs from "node:fs";
+
+const result = await client.images.generate({
+	model: "gpt-image-2",
+	prompt: "A tiny house in a forest",
+});
+
+const edited = await client.images.edit({
+	model: "gpt-image-2",
+	prompt: "Add a red hat",
+	image: fs.createReadStream("input.png"),
+});
+```
+
 ## Package Notes
 
 `@openai-oauth/openai-client` turns an OpenAI OAuth credential source into options for `new OpenAI()`.

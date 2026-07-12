@@ -1,4 +1,4 @@
-import OpenAI from "openai"
+import OpenAI, { toFile } from "openai"
 import { describe, expect, test, vi } from "vitest"
 import { createOpenAIOptions } from "../src/index.js"
 
@@ -69,7 +69,10 @@ describe("createOpenAIOptions", () => {
 		)
 
 		const models = await client.models.list()
-		expect(models.data.map((model) => model.id)).toEqual(["gpt-5.6-sol"])
+		expect(models.data.map((model) => model.id)).toEqual([
+			"gpt-5.6-sol",
+			"gpt-image-2",
+		])
 
 		const response = await client.responses.create({
 			model: "gpt-5.6-sol",
@@ -108,5 +111,70 @@ describe("createOpenAIOptions", () => {
 				},
 			],
 		})
+	})
+
+	test("supports OpenAI SDK image generation and edits", async () => {
+		const requests: Array<{ path: string; body: Record<string, unknown> }> = []
+		const fetch = vi.fn(
+			async (input: RequestInfo | URL, init?: RequestInit) => {
+				const url = new URL(String(input))
+				requests.push({
+					path: url.pathname,
+					body: JSON.parse(String(init?.body)),
+				})
+				return Response.json({
+					created: 1,
+					data: [{ b64_json: "AQID" }],
+					usage: { input_tokens: 2, output_tokens: 3, total_tokens: 5 },
+				})
+			},
+		)
+		const client = new OpenAI(
+			createOpenAIOptions({
+				kind: "openai-oauth",
+				fetch,
+				getSession: async () => ({
+					accessToken: "access-token",
+					accountId: "acct-1",
+				}),
+				refreshSession: async () => ({
+					accessToken: "access-token",
+					accountId: "acct-1",
+				}),
+			}),
+		)
+
+		const generated = await client.images.generate({
+			model: "gpt-image-2",
+			prompt: "draw a square",
+		})
+		const input = await toFile(new Uint8Array([1, 2, 3]), "input.png", {
+			type: "image/png",
+		})
+		const edited = await client.images.edit({
+			model: "gpt-image-2",
+			prompt: "add a red hat",
+			image: input,
+		})
+
+		expect(generated.data[0]?.b64_json).toBe("AQID")
+		expect(edited.data[0]?.b64_json).toBe("AQID")
+		expect(requests).toEqual([
+			{
+				path: "/backend-api/codex/images/generations",
+				body: {
+					model: "gpt-image-2",
+					prompt: "draw a square",
+				},
+			},
+			{
+				path: "/backend-api/codex/images/edits",
+				body: {
+					images: [{ image_url: "data:image/png;base64,AQID" }],
+					model: "gpt-image-2",
+					prompt: "add a red hat",
+				},
+			},
+		])
 	})
 })

@@ -1,4 +1,5 @@
 import { withoutTrailingSlash } from "@ai-sdk/provider-utils"
+import { CODEX_IMAGE_MODEL, prepareCodexImageRequest } from "./images.js"
 import {
 	type CodexModelInfo,
 	fetchCodexModelCatalog,
@@ -138,6 +139,8 @@ export type OpenAIOAuthTransport = {
 		chatCompletions: true
 		models: true
 		streaming: true
+		imageGeneration: true
+		imageEditing: true
 	}
 }
 
@@ -530,7 +533,11 @@ const readRequestParts = async (
 			headers,
 			body:
 				init?.body ??
-				(input.body == null ? undefined : await input.clone().text()),
+				(input.body == null
+					? undefined
+					: input.headers.get("content-type")?.includes("multipart/form-data")
+						? await input.clone().formData()
+						: await input.clone().text()),
 			signal: init?.signal ?? input.signal,
 		}
 	}
@@ -972,12 +979,24 @@ export const createCodexOAuthFetch = (
 			}
 			return Response.json({
 				object: "list",
-				data: models.map((model) => ({
-					id: model.slug,
-					object: "model",
-					created: 0,
-					owned_by: "codex-oauth",
-				})),
+				data: [
+					...models.map((model) => ({
+						id: model.slug,
+						object: "model",
+						created: 0,
+						owned_by: "codex-oauth",
+					})),
+					...(models.some((model) => model.slug === CODEX_IMAGE_MODEL)
+						? []
+						: [
+								{
+									id: CODEX_IMAGE_MODEL,
+									object: "model",
+									created: 0,
+									owned_by: "codex-oauth",
+								},
+							]),
+				],
 			})
 		}
 
@@ -986,11 +1005,19 @@ export const createCodexOAuthFetch = (
 			headers.set(key, value)
 		})
 		applyAuthHeaders(headers, auth)
+		const preparedImage = await prepareCodexImageRequest(
+			target.pathname,
+			headers,
+			request.body,
+		)
+		if (preparedImage.response) {
+			return preparedImage.response
+		}
 
 		const preparedBody = await prepareResponsesRequestBody(
 			target.pathname,
 			headers,
-			request.body,
+			preparedImage.body,
 			settings,
 			responsesState,
 			auth,
@@ -1052,6 +1079,8 @@ export const createOpenAIOAuthTransport = (
 			chatCompletions: true,
 			models: true,
 			streaming: true,
+			imageGeneration: true,
+			imageEditing: true,
 		},
 	}
 }

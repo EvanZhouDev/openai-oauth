@@ -140,6 +140,7 @@ describe("createCodexOAuthFetch", () => {
 			"gpt-5.2",
 			"gpt-5.4-mini",
 			"gpt-5.6-sol",
+			"gpt-image-2",
 		])
 		expect(upstreamCalls(fetch)).toHaveLength(0)
 	})
@@ -456,6 +457,95 @@ describe("createCodexOAuthFetch", () => {
 		expect(upstreamCalls(fetch)).toEqual([
 			["https://chatgpt.com/backend-api/codex/responses", expect.any(Object)],
 		])
+	})
+
+	test("normalizes image generation requests for the Codex Images API", async () => {
+		const fetch = createMockFetch(async () =>
+			Response.json({ created: 1, data: [{ b64_json: "image-data" }] }),
+		)
+		const oauthFetch = createCodexOAuthFetch({ auth: session, fetch })
+
+		const response = await oauthFetch(
+			"https://example.test/v1/images/generations",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					prompt: "draw a square",
+					quality: "low",
+					size: "1024x1024",
+					response_format: "b64_json",
+				}),
+			},
+		)
+
+		expect(response.status).toBe(200)
+		const [[url, init]] = upstreamCalls(fetch)
+		expect(url).toBe("https://chatgpt.com/backend-api/codex/images/generations")
+		expect(new Headers(init?.headers).get("content-type")).toBe(
+			"application/json",
+		)
+		expect(JSON.parse(String(init?.body))).toEqual({
+			model: "gpt-image-2",
+			prompt: "draw a square",
+			quality: "low",
+			size: "1024x1024",
+		})
+	})
+
+	test("converts multipart image edits into Codex reference images", async () => {
+		const fetch = createMockFetch(async () =>
+			Response.json({ created: 1, data: [{ b64_json: "edited-image" }] }),
+		)
+		const oauthFetch = createCodexOAuthFetch({ auth: session, fetch })
+		const body = new FormData()
+		body.set("model", "gpt-image-2")
+		body.set("prompt", "add a red hat")
+		body.append(
+			"image[]",
+			new Blob([new Uint8Array([1, 2, 3])], {
+				type: "image/png",
+			}),
+			"input.png",
+		)
+		body.set("n", "1")
+		body.set("background", "opaque")
+
+		const response = await oauthFetch("https://example.test/v1/images/edits", {
+			method: "POST",
+			body,
+		})
+
+		expect(response.status).toBe(200)
+		const [[url, init]] = upstreamCalls(fetch)
+		expect(url).toBe("https://chatgpt.com/backend-api/codex/images/edits")
+		expect(new Headers(init?.headers).get("content-type")).toBe(
+			"application/json",
+		)
+		expect(JSON.parse(String(init?.body))).toEqual({
+			images: [{ image_url: "data:image/png;base64,AQID" }],
+			model: "gpt-image-2",
+			prompt: "add a red hat",
+			n: 1,
+			background: "opaque",
+		})
+	})
+
+	test("rejects unsupported streaming image requests before fetching", async () => {
+		const fetch = createMockFetch()
+		const oauthFetch = createCodexOAuthFetch({ auth: session, fetch })
+
+		const response = await oauthFetch(
+			"https://example.test/v1/images/generations",
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ prompt: "draw a square", stream: true }),
+			},
+		)
+
+		expect(response.status).toBe(400)
+		expect(upstreamCalls(fetch)).toHaveLength(0)
 	})
 })
 

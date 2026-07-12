@@ -7,6 +7,10 @@ import {
 import { createCodexOAuthClient } from "@openai-oauth/core"
 import { openaiCredentials } from "@openai-oauth/local"
 import { handleChatCompletionsRequest } from "./chat-completions.js"
+import {
+	handleImageEditRequest,
+	handleImageGenerationRequest,
+} from "./images.js"
 import { createRequestLogger } from "./logging.js"
 import { createModelResolver } from "./models.js"
 import { handleResponsesRequest } from "./responses.js"
@@ -75,6 +79,14 @@ const handleRoutes = async (
 
 	if (request.method === "POST" && url.pathname === "/v1/chat/completions") {
 		return handleChatCompletionsRequest(request, provider, requestLogger)
+	}
+
+	if (request.method === "POST" && url.pathname === "/v1/images/generations") {
+		return handleImageGenerationRequest(request, client)
+	}
+
+	if (request.method === "POST" && url.pathname === "/v1/images/edits") {
+		return handleImageEditRequest(request, client)
 	}
 
 	return toErrorResponse("Route not found.", 404, "not_found_error")

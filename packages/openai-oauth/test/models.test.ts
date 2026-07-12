@@ -22,6 +22,7 @@ describe("model discovery", () => {
 		await expect(resolveOpenAIOAuthModels(codex, undefined)).resolves.toEqual([
 			"gpt-5.6-sol",
 			"gpt-5.6-terra",
+			"gpt-image-2",
 		])
 		expect(codex.request).toHaveBeenCalledWith("/models")
 	})

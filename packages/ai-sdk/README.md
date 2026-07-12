@@ -23,6 +23,27 @@ const result = await generateText({
 });
 ```
 
+Generate or edit images with GPT Image 2:
+
+```ts
+import { readFile } from "node:fs/promises";
+import { generateImage } from "ai";
+
+const result = await generateImage({
+	model: openai.image("gpt-image-2"),
+	prompt: "A tiny house in a forest",
+});
+
+const inputImage = await readFile("input.png");
+const edited = await generateImage({
+	model: openai.image("gpt-image-2"),
+	prompt: {
+		text: "Add a red hat",
+		images: [inputImage],
+	},
+});
+```
+
 ## Package Notes
 
 `@openai-oauth/ai-sdk` accepts any OpenAI OAuth credential source.
@@ -63,6 +84,8 @@ const openai = createOpenAIOAuth(credentials);
 
 openai("gpt-5.4-mini");
 openai.languageModel("gpt-5.4-mini");
+openai.image("gpt-image-2");
+openai.imageModel("gpt-image-2");
 ```
 
 Exports:
@@ -72,6 +95,7 @@ Exports:
 - `OpenAIOAuthProviderInput`
 - `OpenAIOAuthProviderSettings`
 - `OpenAIOAuthModelId`
+- `OpenAIOAuthImageModelId`
 
 ## More
 

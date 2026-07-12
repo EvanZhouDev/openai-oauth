@@ -1,5 +1,9 @@
-import { OpenAIResponsesLanguageModel } from "@ai-sdk/openai/internal"
 import {
+	OpenAIImageModel,
+	OpenAIResponsesLanguageModel,
+} from "@ai-sdk/openai/internal"
+import {
+	type ImageModelV3,
 	type LanguageModelV3,
 	type LanguageModelV3Content,
 	type LanguageModelV3FinishReason,
@@ -18,6 +22,7 @@ import {
 } from "@openai-oauth/core"
 
 export type OpenAIOAuthModelId = string
+export type OpenAIOAuthImageModelId = string
 
 export type OpenAIOAuthProviderSettings = {
 	name?: string
@@ -278,6 +283,8 @@ class CodexResponsesLanguageModel extends OpenAIResponsesLanguageModel {
 export interface OpenAIOAuthProvider extends ProviderV3 {
 	(modelId: OpenAIOAuthModelId): LanguageModelV3
 	languageModel(modelId: OpenAIOAuthModelId): LanguageModelV3
+	image(modelId: OpenAIOAuthImageModelId): ImageModelV3
+	imageModel(modelId: OpenAIOAuthImageModelId): ImageModelV3
 }
 
 const isTransport = (
@@ -318,6 +325,13 @@ export const createOpenAIOAuth = (
 
 	const createModel = (modelId: OpenAIOAuthModelId) =>
 		new CodexResponsesLanguageModel(modelId, config)
+	const createImageModel = (modelId: OpenAIOAuthImageModelId) =>
+		new OpenAIImageModel(modelId, {
+			provider: `${providerName}.image`,
+			url: ({ path }) => `${baseURL}${path}`,
+			headers: () => withUserAgentSuffix({}, "oai-oauth/0.0.0"),
+			fetch: oauthFetch,
+		})
 
 	const providerFn = (modelId: OpenAIOAuthModelId) => createModel(modelId)
 	const specificationVersion: ProviderV3["specificationVersion"] = "v3"
@@ -325,11 +339,10 @@ export const createOpenAIOAuth = (
 	return Object.assign(providerFn, {
 		specificationVersion,
 		languageModel: createModel,
+		image: createImageModel,
 		embeddingModel: (modelId: string) => {
 			throw new NoSuchModelError({ modelId, modelType: "embeddingModel" })
 		},
-		imageModel: (modelId: string) => {
-			throw new NoSuchModelError({ modelId, modelType: "imageModel" })
-		},
+		imageModel: createImageModel,
 	})
 }

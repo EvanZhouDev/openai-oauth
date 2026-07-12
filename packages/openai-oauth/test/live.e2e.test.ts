@@ -1,5 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai"
 import {
+	generateImage,
 	generateText,
 	streamText,
 	Experimental_Agent as ToolLoopAgent,
@@ -30,7 +31,7 @@ describe("openai oauth server live e2e", () => {
 	})
 
 	liveTest(
-		"supports responses and chat clients through the local server",
+		"supports text, tools, and images through the local server",
 		async () => {
 			const modelsResponse = await fetch(`${baseURL}/models`)
 			expect(modelsResponse.ok).toBe(true)
@@ -94,6 +95,37 @@ describe("openai oauth server live e2e", () => {
 			expect(chatSmoke.finishReason).toBe("stop")
 			expect(chatSmoke.usage.inputTokens).toBeGreaterThan(0)
 			expect(chatSmoke.usage.outputTokens).toBeGreaterThan(0)
+
+			const generatedImage = await generateImage({
+				model: openai.image("gpt-image-2"),
+				prompt: "A simple blue square centered on a plain white background.",
+				size: "1024x1024",
+				providerOptions: {
+					openai: {
+						background: "opaque",
+						quality: "low",
+					},
+				},
+			})
+			expect(generatedImage.image.base64.length).toBeGreaterThan(100)
+			expect(generatedImage.usage.outputTokens).toBeGreaterThan(0)
+
+			const editedImage = await generateImage({
+				model: openai.image("gpt-image-2"),
+				prompt: {
+					text: "Change the square from blue to green.",
+					images: [generatedImage.image.uint8Array],
+				},
+				size: "1024x1024",
+				providerOptions: {
+					openai: {
+						background: "opaque",
+						quality: "low",
+					},
+				},
+			})
+			expect(editedImage.image.base64.length).toBeGreaterThan(100)
+			expect(editedImage.usage.inputTokens).toBeGreaterThan(0)
 
 			const weather = tool({
 				description: "Get weather",
