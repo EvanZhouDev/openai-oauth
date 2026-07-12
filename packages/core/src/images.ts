@@ -1,3 +1,5 @@
+import { isRecord } from "./utils.js"
+
 export const CODEX_IMAGE_MODEL = "gpt-image-2"
 
 const MAX_REFERENCE_IMAGES = 5
@@ -14,9 +16,6 @@ export type PreparedCodexImageRequest = {
 	body: BodyInit | null | undefined
 	response?: Response
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value)
 
 const errorResponse = (message: string): Response =>
 	Response.json(

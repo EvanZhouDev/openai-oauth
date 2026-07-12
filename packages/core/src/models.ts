@@ -1,3 +1,5 @@
+import { isRecord } from "./utils.js"
+
 export const DEFAULT_CODEX_CLIENT_VERSION = "0.144.1"
 
 const CODEX_VERSION_CACHE_TTL_MS = 60 * 60 * 1000
@@ -36,9 +38,6 @@ export type CodexModelCatalogClient = {
 type RegistryPackageResponse = {
 	version?: unknown
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value)
 
 const normalizeVersion = (value: unknown): string | undefined => {
 	if (typeof value !== "string") {

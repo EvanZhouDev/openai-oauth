@@ -1,24 +1,12 @@
-import { withoutTrailingSlash } from "@ai-sdk/provider-utils"
 import { CODEX_IMAGE_MODEL, prepareCodexImageRequest } from "./images.js"
 import {
 	type CodexModelInfo,
 	fetchCodexModelCatalog,
 	isPublicCodexModel,
 } from "./models.js"
-import { CodexResponsesState } from "./state.js"
-
-export {
-	collectCompletedResponseFromSse,
-	iterateServerSentEvents,
-	type ServerSentEvent,
-} from "./sse.js"
-export {
-	CodexResponsesState,
-	type CodexResponsesStateOptions,
-	type CodexResponsesStateSnapshot,
-} from "./state.js"
-
 import { collectCompletedResponseFromSse } from "./sse.js"
+import { CodexResponsesState } from "./state.js"
+import { isRecord } from "./utils.js"
 
 export const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
 export const DEFAULT_OPENAI_COMPATIBLE_BASE_URL =
@@ -50,7 +38,6 @@ export type OpenAIOAuthSessionInput =
 export type OpenAIOAuth = {
 	kind: "openai-oauth"
 	getSession(): Promise<OpenAIOAuthSession | null>
-	refreshSession(): Promise<OpenAIOAuthSession | null>
 	baseURL?: string
 	fetch?: FetchFunction
 	headers?: Record<string, string>
@@ -114,7 +101,7 @@ export type RefreshOpenAIOAuthTokensOptions = {
 	signal?: AbortSignal
 }
 
-export type CodexOAuthRuntimeSettings = {
+type CodexOAuthRuntimeSettings = {
 	auth: OpenAIOAuthSessionInput
 	baseURL?: string
 	codexVersion?: string
@@ -124,27 +111,16 @@ export type CodexOAuthRuntimeSettings = {
 	responsesState?: CodexResponsesState | false
 }
 
-export type OpenAIOAuthTransportOptions = CodexOAuthRuntimeSettings & {
+export type OpenAIOAuthTransportOptions = Omit<
+	CodexOAuthRuntimeSettings,
+	"responsesState"
+> & {
 	openAIBaseURL?: string
+	responsesState?: false
 }
 
 export type OpenAIOAuthTransport = {
 	kind: "openai-compatible"
-	provider: "chatgpt-codex"
-	baseURL: string
-	fetch: FetchFunction
-	request: (path: string, init?: RequestInit) => Promise<Response>
-	capabilities: {
-		responses: true
-		chatCompletions: true
-		models: true
-		streaming: true
-		imageGeneration: true
-		imageEditing: true
-	}
-}
-
-export type CodexOAuthClient = {
 	baseURL: string
 	fetch: FetchFunction
 	request: (path: string, init?: RequestInit) => Promise<Response>
@@ -197,8 +173,8 @@ const createCodeChallenge = async (codeVerifier: string): Promise<string> => {
 
 const trimTrailingSlash = (value: string): string => value.replace(/\/$/, "")
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value)
+const withoutTrailingSlash = (value: string | undefined): string | undefined =>
+	value?.replace(/\/$/, "")
 
 export const usesServerReplayState = (
 	value: Record<string, unknown>,
@@ -935,7 +911,7 @@ const resolveAuth = async (
 	return auth
 }
 
-export const createCodexOAuthFetch = (
+const createCodexOAuthFetch = (
 	settings: CodexOAuthRuntimeSettings,
 ): FetchFunction => {
 	const fetch = pickFetch(settings.fetch)
@@ -1047,20 +1023,6 @@ const resolveOpenAICompatibleUrl = (path: string, baseURL: string): string => {
 	return new URL(normalizedPath, `${baseURL}/`).toString()
 }
 
-export const createCodexOAuthClient = (
-	settings: CodexOAuthRuntimeSettings,
-): CodexOAuthClient => {
-	const baseURL = resolveBaseURL(settings.baseURL)
-	const fetch = createCodexOAuthFetch(settings)
-
-	return {
-		baseURL,
-		fetch,
-		request: (path, init) =>
-			fetch(new URL(path, `${baseURL}/`).toString(), init),
-	}
-}
-
 export const createOpenAIOAuthTransport = (
 	settings: OpenAIOAuthTransportOptions,
 ): OpenAIOAuthTransport => {
@@ -1069,18 +1031,9 @@ export const createOpenAIOAuthTransport = (
 
 	return {
 		kind: "openai-compatible",
-		provider: "chatgpt-codex",
 		baseURL,
 		fetch,
 		request: (path, init) =>
 			fetch(resolveOpenAICompatibleUrl(path, baseURL), init),
-		capabilities: {
-			responses: true,
-			chatCompletions: true,
-			models: true,
-			streaming: true,
-			imageGeneration: true,
-			imageEditing: true,
-		},
 	}
 }

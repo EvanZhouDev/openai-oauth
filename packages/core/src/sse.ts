@@ -1,3 +1,5 @@
+import { isRecord } from "./utils.js"
+
 const SSE_SEPARATOR = /\r?\n\r?\n/
 
 export type ServerSentEvent = {
@@ -64,9 +66,6 @@ export async function* iterateServerSentEvents(
 		reader.releaseLock()
 	}
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-	typeof value === "object" && value !== null && !Array.isArray(value)
 
 const terminalServerSentEvents = new Set([
 	"error",

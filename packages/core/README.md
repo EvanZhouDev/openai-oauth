@@ -27,7 +27,7 @@ const baseURL = transport.baseURL;
 const fetch = transport.fetch;
 ```
 
-The transport supports Responses, Chat Completions, model discovery, image generation, and multipart image editing.
+The transport supports Responses, model discovery, image generation, and multipart image editing. Client adapters build higher-level interfaces such as Chat Completions on top.
 
 Create an OAuth request:
 
@@ -39,18 +39,12 @@ const request = await createOpenAIOAuthRequest({
 });
 ```
 
-Node auth-file helpers are also exported for the CLI and `@openai-oauth/local`.
-
 Core exports include:
 
 - `createOpenAIOAuthTransport`
 - `createOpenAIOAuthRequest`
-- `createCodexOAuthClient`
 - `exchangeOpenAIOAuthCode`
 - `refreshOpenAIOAuthTokens`
-- `loadAuthTokens`
-- `saveAuthTokens`
-- `resolveCodexAuthFilePath`
 - `OpenAIOAuth`
 - `OpenAIOAuthSession`
 - `SessionStore`

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { CodexResponsesState } from "../src/index.js"
+import { CodexResponsesState } from "../src/state.js"
 
 describe("CodexResponsesState", () => {
 	test("expands cached item references into full items", () => {

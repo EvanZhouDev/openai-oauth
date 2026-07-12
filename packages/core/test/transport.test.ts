@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
+import { createOpenAIOAuthTransport } from "../src/index.js"
 import {
-	collectCompletedResponseFromSse,
-	createCodexOAuthFetch,
-	createOpenAIOAuthTransport,
+	createOpenAIOAuthTransport as createRuntimeOpenAIOAuthTransport,
 	normalizeCodexResponsesBody,
-} from "../src/index.js"
-import { createOpenAIOAuthTransport as createRuntimeOpenAIOAuthTransport } from "../src/runtime.js"
+	type OpenAIOAuthTransportOptions,
+} from "../src/runtime.js"
+import { collectCompletedResponseFromSse } from "../src/sse.js"
+
+const createCodexOAuthFetch = (options: OpenAIOAuthTransportOptions) =>
+	createRuntimeOpenAIOAuthTransport(options).fetch
 
 const session = {
 	accessToken: "access-token",

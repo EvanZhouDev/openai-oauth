@@ -10,6 +10,9 @@
 		"transport"
 	],
 	"type": "module",
+	"engines": {
+		"node": ">=20"
+	},
 	"sideEffects": false,
 	"main": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -26,7 +29,7 @@
 		"LICENSE"
 	],
 	"scripts": {
-		"build": "tsc -p tsconfig.build.json",
+		"build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
 		"prepublishOnly": "bun run build",
 		"typecheck": "tsc --noEmit",
 		"test": "vitest run"
@@ -34,13 +37,9 @@
 	"publishConfig": {
 		"access": "public"
 	},
-	"dependencies": {
-		"@ai-sdk/provider-utils": "4.0.19"
-	},
 	"devDependencies": {
-		"@types/node": "20.17.24",
-		"typescript": "latest",
-		"vitest": "latest"
+		"typescript": "5.9.2",
+		"vitest": "4.1.10"
 	},
 	"author": "EvanZhouDev",
 	"license": "AGPL-3.0-only",
