@@ -24,6 +24,9 @@ await fetch("/api/chat", {
 
 `@openai-oauth/web` is the lower-level web package. Use it when you need browser primitives without React.
 
+
+Model requests cannot be made directly from a browser due to CORS. This also applies for Desktop apps inside a WebView or browser renderer such as Electron or Tauri. You can use this package for sign-in and session storage, but run model requests through native desktop networking.
+
 ### Hosted Sign-in
 
 Hosted browser sign-in uses the open-source Sign in with ChatGPT extension for [Chrome](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna) or [Firefox](https://addons.mozilla.org/firefox/addon/sign-in-with-chatgpt/) to complete OpenAI's local OAuth callback. The extension shows the destination app for confirmation and then returns the callback directly to it.

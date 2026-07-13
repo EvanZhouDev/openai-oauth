@@ -506,7 +506,9 @@ The prebuilt button includes a small "Powered by OpenAI OAuth" link by default t
 
 Hosted web apps need the open-source Sign in with ChatGPT extension for [Chrome](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna) or [Firefox](https://addons.mozilla.org/firefox/addon/sign-in-with-chatgpt/) to complete the OAuth handoff securely. The prebuilt component detects the current browser and shows the correct install screen when needed.
 
-Due to CORS, you will need a server relay to call the actual AI API. One way to do this is to send the browser session to your own app route:
+Model requests cannot be made directly from a browser due to CORS (This also applies for Desktop apps inside a WebView or browser renderer such as Electron or Tauri).
+
+For hosted web apps, one way to do this is to send the browser session to your own app route:
 
 ```ts
 import { openaiAuthHeaders } from "@openai-oauth/react";
