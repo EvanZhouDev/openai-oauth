@@ -1,6 +1,6 @@
 {
 	"name": "@openai-oauth/openai-client",
-	"version": "2.0.0-beta.3",
+	"version": "2.0.0-beta.4",
 	"description": "OpenAI JavaScript SDK adapter for openai-oauth auth handles.",
 	"keywords": [
 		"openai",
