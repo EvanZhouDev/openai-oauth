@@ -3,12 +3,7 @@ import type { ReactNode } from "react"
 import "./styles.css"
 
 const siteUrl =
-	process.env.NEXT_PUBLIC_SITE_URL ??
-	(process.env.VERCEL_PROJECT_PRODUCTION_URL
-		? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-		: process.env.VERCEL_URL
-			? `https://${process.env.VERCEL_URL}`
-			: "http://localhost:3000")
+	process.env.NEXT_PUBLIC_SITE_URL ?? "https://openai-oauth.vercel.app"
 
 export const metadata: Metadata = {
 	metadataBase: new URL(siteUrl),
