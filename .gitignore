@@ -1,4 +1,8 @@
 node_modules
-dist
+dist*/
 coverage
+.next
+apps/demo/next-env.d.ts
 .turbo
+*.tsbuildinfo
+.DS_Store

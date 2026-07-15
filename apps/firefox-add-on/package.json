@@ -1,0 +1,17 @@
+{
+	"name": "@openai-oauth/firefox-add-on",
+	"version": "0.0.1",
+	"private": true,
+	"license": "Apache-2.0",
+	"description": "Firefox add-on for OpenAI OAuth web sign-in.",
+	"scripts": {
+		"build": "node scripts/build.mjs",
+		"dev": "bun run build && web-ext run --source-dir dist",
+		"lint:add-on": "web-ext lint --source-dir dist",
+		"pack": "bun run build && rm -rf dist-pack && web-ext build --source-dir dist --artifacts-dir dist-pack --overwrite-dest",
+		"test": "bun test"
+	},
+	"devDependencies": {
+		"web-ext": "^10.5.0"
+	}
+}

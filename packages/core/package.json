@@ -1,0 +1,56 @@
+{
+	"name": "@openai-oauth/core",
+	"version": "2.0.0",
+	"description": "Core auth and in-memory OpenAI-compatible transport for openai-oauth.",
+	"keywords": [
+		"openai",
+		"oauth",
+		"chatgpt",
+		"codex",
+		"transport"
+	],
+	"type": "module",
+	"engines": {
+		"node": ">=20"
+	},
+	"sideEffects": false,
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"NOTICE"
+	],
+	"scripts": {
+		"build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
+		"prepublishOnly": "bun run build",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"devDependencies": {
+		"typescript": "5.9.2",
+		"vitest": "4.1.10"
+	},
+	"author": "EvanZhouDev",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/EvanZhouDev/openai-oauth.git",
+		"directory": "packages/core"
+	},
+	"bugs": {
+		"url": "https://github.com/EvanZhouDev/openai-oauth/issues"
+	},
+	"homepage": "https://github.com/EvanZhouDev/openai-oauth#readme"
+}

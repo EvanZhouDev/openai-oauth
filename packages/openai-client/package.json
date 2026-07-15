@@ -1,0 +1,61 @@
+{
+	"name": "@openai-oauth/openai-client",
+	"version": "2.0.0",
+	"description": "OpenAI JavaScript SDK adapter for openai-oauth auth handles.",
+	"keywords": [
+		"openai",
+		"oauth",
+		"chatgpt",
+		"codex",
+		"openai-client"
+	],
+	"type": "module",
+	"engines": {
+		"node": ">=20"
+	},
+	"sideEffects": false,
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"NOTICE"
+	],
+	"scripts": {
+		"build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
+		"prepublishOnly": "bun run build",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:live": "LIVE_CODEX_E2E=1 vitest run test/live.e2e.test.ts"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"dependencies": {
+		"@openai-oauth/core": "workspace:*"
+	},
+	"devDependencies": {
+		"openai": "6.46.0",
+		"typescript": "5.9.2",
+		"vitest": "4.1.10"
+	},
+	"author": "EvanZhouDev",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/EvanZhouDev/openai-oauth.git",
+		"directory": "packages/openai-client"
+	},
+	"bugs": {
+		"url": "https://github.com/EvanZhouDev/openai-oauth/issues"
+	},
+	"homepage": "https://github.com/EvanZhouDev/openai-oauth#readme"
+}

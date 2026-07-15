@@ -10,11 +10,30 @@ describe("update check", () => {
 		expect(compareSemver("0.0.1", "0.0.2")).toBeLessThan(0)
 		expect(compareSemver("0.1.0", "0.0.9")).toBeGreaterThan(0)
 		expect(compareSemver("1.2.3", "1.2.3")).toBe(0)
+		expect(compareSemver("2.0.0-beta.2", "2.0.0-beta.3")).toBeLessThan(0)
+		expect(compareSemver("2.0.0-beta.3", "2.0.0")).toBeLessThan(0)
 	})
 
-	test("normalizeVersion accepts plain semver only", () => {
+	test("normalizeVersion accepts release and prerelease semver", () => {
 		expect(normalizeVersion("0.114.0")).toBe("0.114.0")
+		expect(normalizeVersion("2.0.0-beta.3")).toBe("2.0.0-beta.3")
 		expect(normalizeVersion("codex-cli 0.114.0")).toBeUndefined()
+	})
+
+	test("checks the latest channel for prerelease versions", async () => {
+		const urls: string[] = []
+		const warnings: string[] = []
+
+		await checkForOpenAIOAuthUpdates("2.0.0-beta.2", {
+			fetchImpl: async (input) => {
+				urls.push(String(input))
+				return Response.json({ version: "2.0.0" })
+			},
+			onWarning: (message) => warnings.push(message),
+		})
+
+		expect(urls).toEqual(["https://registry.npmjs.org/openai-oauth/latest"])
+		expect(warnings[0]).toContain("npx openai-oauth@latest")
 	})
 
 	test("warns when a newer version is available", async () => {

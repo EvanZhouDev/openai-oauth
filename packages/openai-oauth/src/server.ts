@@ -1,19 +1,23 @@
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import {
-	type CodexOAuthSettings,
-	createCodexOAuthClient,
-} from "../../openai-oauth-core/src/index.js"
-import {
 	createOpenAIOAuth,
 	type OpenAIOAuthProvider,
-} from "../../openai-oauth-provider/src/index.js"
+} from "@openai-oauth/ai-sdk"
+import {
+	createOpenAIOAuthTransport,
+	type OpenAIOAuthTransport,
+} from "@openai-oauth/core"
+import { openaiCredentials } from "@openai-oauth/local"
 import { handleChatCompletionsRequest } from "./chat-completions.js"
+import {
+	handleImageEditRequest,
+	handleImageGenerationRequest,
+} from "./images.js"
 import { createRequestLogger } from "./logging.js"
 import { createModelResolver } from "./models.js"
 import { handleResponsesRequest } from "./responses.js"
 import {
-	corsHeaders,
 	DEFAULT_HOST,
 	DEFAULT_PORT,
 	resolveAddress,
@@ -29,19 +33,11 @@ import type {
 
 const handleRoutes = async (
 	request: Request,
-	settings: OpenAIOAuthServerOptions,
 	provider: OpenAIOAuthProvider,
-	client: ReturnType<typeof createCodexOAuthClient>,
+	client: OpenAIOAuthTransport,
 	resolveModels: () => Promise<string[]>,
 	requestLogger: ReturnType<typeof createRequestLogger>,
 ): Promise<Response> => {
-	if (request.method === "OPTIONS") {
-		return new Response(null, {
-			status: 204,
-			headers: corsHeaders,
-		})
-	}
-
 	const url = new URL(request.url)
 	if (request.method === "GET" && url.pathname === "/health") {
 		return toJsonResponse({
@@ -72,35 +68,40 @@ const handleRoutes = async (
 	}
 
 	if (request.method === "POST" && url.pathname === "/v1/responses") {
-		return handleResponsesRequest(request, settings, client)
+		return handleResponsesRequest(request, client)
 	}
 
 	if (request.method === "POST" && url.pathname === "/v1/chat/completions") {
 		return handleChatCompletionsRequest(request, provider, requestLogger)
 	}
 
+	if (request.method === "POST" && url.pathname === "/v1/images/generations") {
+		return handleImageGenerationRequest(request, client)
+	}
+
+	if (request.method === "POST" && url.pathname === "/v1/images/edits") {
+		return handleImageEditRequest(request, client)
+	}
+
 	return toErrorResponse("Route not found.", 404, "not_found_error")
 }
 
-export const createOpenAIOAuthFetchHandler = (
-	settings: OpenAIOAuthServerOptions = {},
-): ((request: Request) => Promise<Response>) => {
-	const sharedSettings: CodexOAuthSettings = {
+const createOpenAIOAuthRuntime = (settings: OpenAIOAuthServerOptions = {}) => {
+	const auth = openaiCredentials(settings)
+	const sharedSettings = {
 		...settings,
-		responsesState: false,
+		auth: () => auth.getSession(),
+		responsesState: false as const,
 	}
-	const client = createCodexOAuthClient(sharedSettings)
-	const provider = createOpenAIOAuth(sharedSettings)
-	const resolveModels = createModelResolver(client, settings.models, {
-		codexVersion: settings.codexVersion,
-	})
+	const client = createOpenAIOAuthTransport(sharedSettings)
+	const provider = createOpenAIOAuth(client)
+	const resolveModels = createModelResolver(client, settings.models)
 	const requestLogger = createRequestLogger(settings)
 
-	return async (request) => {
+	const handler = async (request: Request): Promise<Response> => {
 		try {
 			return await handleRoutes(
 				request,
-				settings,
 				provider,
 				client,
 				resolveModels,
@@ -114,14 +115,23 @@ export const createOpenAIOAuthFetchHandler = (
 			)
 		}
 	}
+
+	return { handler, resolveModels }
 }
+
+export const createOpenAIOAuthFetchHandler = (
+	settings: OpenAIOAuthServerOptions = {},
+): ((request: Request) => Promise<Response>) =>
+	createOpenAIOAuthRuntime(settings).handler
 
 export const startOpenAIOAuthServer = async (
 	settings: OpenAIOAuthServerOptions = {},
 ): Promise<RunningOpenAIOAuthServer> => {
 	const host = settings.host ?? DEFAULT_HOST
 	const port = settings.port ?? DEFAULT_PORT
-	const handler = createOpenAIOAuthFetchHandler(settings)
+	const runtime = createOpenAIOAuthRuntime(settings)
+	const models = await runtime.resolveModels()
+	const handler = runtime.handler
 	const server = createServer(async (req, res) => {
 		try {
 			const request = await toWebRequest(req, { host, port })
@@ -153,6 +163,7 @@ export const startOpenAIOAuthServer = async (
 		host: address.host,
 		port: address.port,
 		url: `http://${address.host}:${address.port}/v1`,
+		models,
 		close: () =>
 			new Promise<void>((resolve, reject) => {
 				server.close((error) => {

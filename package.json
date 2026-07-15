@@ -2,26 +2,40 @@
 	"name": "openai-oauth-monorepo",
 	"private": true,
 	"description": "Free OpenAI API access with your ChatGPT account.",
-	"packageManager": "bun@1.2.18",
+	"packageManager": "bun@1.3.11",
 	"workspaces": [
-		"packages/*"
+		"packages/*",
+		"apps/*"
 	],
+	"overrides": {
+		"esbuild": "0.28.1",
+		"postcss": "8.5.17"
+	},
 	"scripts": {
 		"build": "turbo run build",
 		"dev": "turbo run dev --parallel",
 		"typecheck": "turbo run typecheck",
 		"test": "turbo run test",
+		"check:browser": "bun scripts/check-browser-bundles.mjs && bun run turbo run build --filter=@openai-oauth/firefox-add-on && bun run --cwd apps/firefox-add-on lint:add-on",
+		"check:release": "bun scripts/check-release.mjs",
 		"format-and-lint": "biome check .",
-		"format-and-lint:fix": "biome check . --write"
+		"format-and-lint:fix": "biome check . --write",
+		"publish:packages": "bun scripts/publish-packages.mjs",
+		"publish:dry-run": "bun scripts/publish-packages.mjs --dry-run"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.3.10",
-		"tsup": "^8.5.0",
-		"turbo": "^2.6.3",
+		"esbuild": "0.28.1",
+		"tsup": "8.5.1",
+		"turbo": "2.10.4",
 		"typescript": "5.9.2"
 	},
 	"author": "EvanZhouDev",
-	"license": "AGPL-3.0-only",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/EvanZhouDev/openai-oauth.git"
+	},
 	"bugs": {
 		"url": "https://github.com/EvanZhouDev/openai-oauth/issues"
 	},

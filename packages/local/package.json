@@ -1,0 +1,66 @@
+{
+	"name": "@openai-oauth/local",
+	"version": "2.0.0",
+	"description": "Local Codex auth-file auth handle for openai-oauth.",
+	"keywords": [
+		"openai",
+		"oauth",
+		"chatgpt",
+		"codex",
+		"local",
+		"credentials"
+	],
+	"type": "module",
+	"engines": {
+		"node": ">=20"
+	},
+	"sideEffects": false,
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		},
+		"./auth-file": {
+			"types": "./dist/auth-file-entry.d.ts",
+			"import": "./dist/auth-file-entry.js",
+			"default": "./dist/auth-file-entry.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"NOTICE"
+	],
+	"scripts": {
+		"build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
+		"prepublishOnly": "bun run build",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"dependencies": {
+		"@openai-oauth/core": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/node": "20.17.24",
+		"typescript": "5.9.2",
+		"vitest": "4.1.10"
+	},
+	"author": "EvanZhouDev",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/EvanZhouDev/openai-oauth.git",
+		"directory": "packages/local"
+	},
+	"bugs": {
+		"url": "https://github.com/EvanZhouDev/openai-oauth/issues"
+	},
+	"homepage": "https://github.com/EvanZhouDev/openai-oauth#readme"
+}

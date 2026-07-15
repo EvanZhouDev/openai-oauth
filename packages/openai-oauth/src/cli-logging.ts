@@ -75,6 +75,78 @@ export const toStartupMessage = (
 		`Available Models: ${availableModels.join(", ")}`,
 	].join("\n")
 
+const notRunning = "OpenAI OAuth is not running."
+
+export const cliMessages = {
+	foregroundControls: "[d] Run in background  [q] Quit",
+	backgroundActions:
+		"Stop with `npx openai-oauth stop` or see logs with `npx openai-oauth logs --follow`",
+	notRunning,
+	notRunningWithStart: [notRunning, "", "Start with `npx openai-oauth`"].join(
+		"\n",
+	),
+	noLogs: "No OpenAI OAuth logs found.",
+	followingLogs: "Following OpenAI OAuth logs. Press Ctrl+C to stop following.",
+	stopped: "OpenAI OAuth stopped.",
+	stoppedRemotely: "OpenAI OAuth was stopped from another terminal.",
+	couldNotStop: "Could not stop OpenAI OAuth.",
+	couldNotDetach: (details?: string): string => {
+		if (details?.startsWith("Could not move OpenAI OAuth to the background")) {
+			return details
+		}
+		return details
+			? `Could not move OpenAI OAuth to the background: ${details}`
+			: "Could not move OpenAI OAuth to the background."
+	},
+	stoppedUnexpectedly: (details: string): string =>
+		`OpenAI OAuth stopped unexpectedly (${details}).`,
+	workerStarted: (baseUrl: string): string =>
+		`OpenAI OAuth started at ${baseUrl}`,
+} as const
+
+export const toForegroundStartupMessage = (
+	baseUrl: string,
+	availableModels: string[],
+	options?: { useColor?: boolean },
+): string =>
+	[
+		toStartupMessage(baseUrl, availableModels, options),
+		"",
+		dim(cliMessages.foregroundControls, options),
+	].join("\n")
+
+export const toBackgroundStartupMessage = (
+	baseUrl: string,
+	availableModels: string[],
+	options?: { useColor?: boolean },
+): string =>
+	[
+		toStartupMessage(baseUrl, availableModels, options),
+		"",
+		cliMessages.backgroundActions,
+	].join("\n")
+
+export const toDetachedMessage = (baseUrl: string): string =>
+	[
+		`OpenAI OAuth is now running in the background at ${baseUrl}`,
+		"",
+		cliMessages.backgroundActions,
+	].join("\n")
+
+export const toAlreadyRunningMessage = (baseUrl: string): string =>
+	[
+		`OpenAI OAuth is already running at ${baseUrl}`,
+		"",
+		cliMessages.backgroundActions,
+	].join("\n")
+
+export const toRunningMessage = (baseUrl: string): string =>
+	[
+		`OpenAI OAuth is running at ${baseUrl}`,
+		"",
+		cliMessages.backgroundActions,
+	].join("\n")
+
 export const installCliWarningLogger = (): void => {
 	let hasLoggedWarningSystemMessage = false
 

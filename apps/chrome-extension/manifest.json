@@ -1,0 +1,47 @@
+{
+	"manifest_version": 3,
+	"name": "Sign in with ChatGPT",
+	"short_name": "ChatGPT Auth",
+	"version": "0.0.2",
+	"description": "Securely sign in with ChatGPT on apps powered by OpenAI OAuth.",
+	"homepage_url": "https://github.com/EvanZhouDev/openai-oauth",
+	"incognito": "not_allowed",
+	"minimum_chrome_version": "102",
+	"icons": {
+		"16": "src/assets/icon-16.png",
+		"32": "src/assets/icon-32.png",
+		"48": "src/assets/icon-48.png",
+		"128": "src/assets/icon-128.png"
+	},
+	"permissions": ["declarativeNetRequestWithHostAccess"],
+	"host_permissions": ["http://localhost:1455/*"],
+	"declarative_net_request": {
+		"rule_resources": [
+			{
+				"id": "openai_oauth_callback",
+				"enabled": true,
+				"path": "rules/openai-oauth-callback.json"
+			}
+		]
+	},
+	"web_accessible_resources": [
+		{
+			"resources": [
+				"src/confirm.html",
+				"src/confirm.js",
+				"src/installed.json",
+				"src/assets/*"
+			],
+			"matches": ["http://localhost/*", "http://127.0.0.1/*", "https://*/*"]
+		}
+	],
+	"action": {
+		"default_title": "Sign in with ChatGPT",
+		"default_icon": {
+			"16": "src/assets/icon-16.png",
+			"32": "src/assets/icon-32.png",
+			"48": "src/assets/icon-48.png",
+			"128": "src/assets/icon-128.png"
+		}
+	}
+}

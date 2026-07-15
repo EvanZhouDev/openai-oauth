@@ -1,0 +1,74 @@
+{
+	"name": "@openai-oauth/react",
+	"version": "2.0.0",
+	"description": "React hook and button for OpenAI OAuth sessions.",
+	"keywords": [
+		"openai",
+		"oauth",
+		"chatgpt",
+		"codex",
+		"react",
+		"sign-in"
+	],
+	"type": "module",
+	"engines": {
+		"node": ">=20"
+	},
+	"sideEffects": false,
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js",
+			"default": "./dist/index.js"
+		},
+		"./server": {
+			"types": "./dist/server.d.ts",
+			"import": "./dist/server.js",
+			"default": "./dist/server.js"
+		}
+	},
+	"files": [
+		"dist",
+		"README.md",
+		"LICENSE",
+		"NOTICE"
+	],
+	"scripts": {
+		"build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
+		"prepublishOnly": "bun run build",
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run"
+	},
+	"publishConfig": {
+		"access": "public"
+	},
+	"peerDependencies": {
+		"react": ">=18.2.0 || >=19.0.0"
+	},
+	"dependencies": {
+		"@openai-oauth/core": "workspace:*",
+		"@openai-oauth/web": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/react": "^19.0.0",
+		"@types/react-dom": "^19.2.3",
+		"happy-dom": "20.10.6",
+		"react": "^19.0.0",
+		"react-dom": "^19.2.3",
+		"typescript": "5.9.2",
+		"vitest": "4.1.10"
+	},
+	"author": "EvanZhouDev",
+	"license": "Apache-2.0",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/EvanZhouDev/openai-oauth.git",
+		"directory": "packages/react"
+	},
+	"bugs": {
+		"url": "https://github.com/EvanZhouDev/openai-oauth/issues"
+	},
+	"homepage": "https://github.com/EvanZhouDev/openai-oauth#readme"
+}

@@ -1,5 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai"
 import {
+	generateImage,
 	generateText,
 	streamText,
 	Experimental_Agent as ToolLoopAgent,
@@ -10,6 +11,7 @@ import * as z from "zod"
 import { startOpenAIOAuthServer } from "../src/index.js"
 
 const liveTest = process.env.LIVE_CODEX_E2E === "1" ? test : test.skip
+const liveModel = "gpt-5.6-terra"
 
 describe("openai oauth server live e2e", () => {
 	let stop: (() => Promise<void>) | undefined
@@ -29,13 +31,23 @@ describe("openai oauth server live e2e", () => {
 	})
 
 	liveTest(
-		"supports responses and chat clients through the local server",
+		"supports text, tools, and images through the local server",
 		async () => {
 			const modelsResponse = await fetch(`${baseURL}/models`)
 			expect(modelsResponse.ok).toBe(true)
 			const modelsPayload = await modelsResponse.json()
 			expect(Array.isArray(modelsPayload.data)).toBe(true)
 			expect(modelsPayload.data.length).toBeGreaterThan(0)
+			expect(
+				modelsPayload.data.some(
+					(model: { id?: unknown }) => model.id === liveModel,
+				),
+			).toBe(true)
+			expect(
+				modelsPayload.data.some(
+					(model: { id?: unknown }) => model.id === "codex-auto-review",
+				),
+			).toBe(false)
 			expect(
 				modelsPayload.data.every(
 					(model: { id?: unknown }) =>
@@ -49,23 +61,17 @@ describe("openai oauth server live e2e", () => {
 					"Content-Type": "application/json",
 				},
 				body: JSON.stringify({
-					model: "gpt-5.2",
+					model: liveModel,
 					stream: false,
-					input: [
-						{
-							role: "user",
-							content: [
-								{
-									type: "input_text",
-									text: "Reply with exactly: endpoint-json-ok",
-								},
-							],
-						},
-					],
+					input: "Reply with exactly: endpoint-json-ok",
 				}),
 			})
 
 			expect(directResponse.ok).toBe(true)
+			const directPayload = await directResponse.json()
+			expect(directPayload.status).toBe("completed")
+			expect(directPayload.usage.input_tokens).toBeGreaterThan(0)
+			expect(directPayload.usage.output_tokens).toBeGreaterThan(0)
 
 			const openai = createOpenAI({
 				baseURL,
@@ -73,10 +79,53 @@ describe("openai oauth server live e2e", () => {
 			})
 
 			const smoke = await generateText({
-				model: openai.responses("gpt-5.2"),
+				model: openai.responses(liveModel),
 				prompt: "Reply with exactly: server-smoke-ok",
 			})
 			expect(smoke.text.trim()).toBe("server-smoke-ok")
+			expect(smoke.finishReason).toBe("stop")
+			expect(smoke.usage.inputTokens).toBeGreaterThan(0)
+			expect(smoke.usage.outputTokens).toBeGreaterThan(0)
+
+			const chatSmoke = await generateText({
+				model: openai.chat(liveModel),
+				prompt: "Reply with exactly: server-chat-ok",
+			})
+			expect(chatSmoke.text.trim()).toBe("server-chat-ok")
+			expect(chatSmoke.finishReason).toBe("stop")
+			expect(chatSmoke.usage.inputTokens).toBeGreaterThan(0)
+			expect(chatSmoke.usage.outputTokens).toBeGreaterThan(0)
+
+			const generatedImage = await generateImage({
+				model: openai.image("gpt-image-2"),
+				prompt: "A simple blue square centered on a plain white background.",
+				size: "1024x1024",
+				providerOptions: {
+					openai: {
+						background: "opaque",
+						quality: "low",
+					},
+				},
+			})
+			expect(generatedImage.image.base64.length).toBeGreaterThan(100)
+			expect(generatedImage.usage.outputTokens).toBeGreaterThan(0)
+
+			const editedImage = await generateImage({
+				model: openai.image("gpt-image-2"),
+				prompt: {
+					text: "Change the square from blue to green.",
+					images: [generatedImage.image.uint8Array],
+				},
+				size: "1024x1024",
+				providerOptions: {
+					openai: {
+						background: "opaque",
+						quality: "low",
+					},
+				},
+			})
+			expect(editedImage.image.base64.length).toBeGreaterThan(100)
+			expect(editedImage.usage.inputTokens).toBeGreaterThan(0)
 
 			const weather = tool({
 				description: "Get weather",
@@ -86,8 +135,10 @@ describe("openai oauth server live e2e", () => {
 			})
 
 			const streamedToolEvents: string[] = []
+			let streamFinishReason: string | undefined
+			let streamInputTokens: number | undefined
 			const toolStream = streamText({
-				model: openai.chat("gpt-5.2"),
+				model: openai.chat(liveModel),
 				messages: [
 					{
 						role: "user",
@@ -105,13 +156,20 @@ describe("openai oauth server live e2e", () => {
 				) {
 					streamedToolEvents.push(part.type)
 				}
+
+				if (part.type === "finish") {
+					streamFinishReason = part.finishReason
+					streamInputTokens = part.totalUsage.inputTokens
+				}
 			}
 
 			expect(streamedToolEvents).toContain("tool-input-start")
 			expect(streamedToolEvents).toContain("tool-call")
+			expect(streamFinishReason).toBe("tool-calls")
+			expect(streamInputTokens).toBeGreaterThan(0)
 
 			const agent = new ToolLoopAgent({
-				model: openai.chat("gpt-5.2"),
+				model: openai.chat(liveModel),
 				tools: {
 					weather: tool({
 						description: "Get weather",

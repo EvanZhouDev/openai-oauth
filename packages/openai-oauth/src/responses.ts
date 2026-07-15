@@ -1,23 +1,19 @@
-import {
-	type CodexOAuthClient,
-	collectCompletedResponseFromSse,
-	normalizeCodexResponsesBody,
-} from "../../openai-oauth-core/src/index.js"
-import {
-	copyUpstreamResponse,
-	corsHeaders,
-	isRecord,
-	sseHeaders,
-	toErrorResponse,
-	toJsonResponse,
-	usesServerReplayState,
-} from "./shared.js"
-import type { OpenAIOAuthServerOptions } from "./types.js"
+import type { OpenAIOAuthTransport } from "@openai-oauth/core"
+import { copyUpstreamResponse, isRecord, toErrorResponse } from "./shared.js"
+
+const usesServerReplayState = (body: Record<string, unknown>): boolean =>
+	typeof body.previous_response_id === "string" ||
+	(Array.isArray(body.input) &&
+		body.input.some(
+			(item) =>
+				isRecord(item) &&
+				item.type === "item_reference" &&
+				typeof item.id === "string",
+		))
 
 export const handleResponsesRequest = async (
 	request: Request,
-	settings: OpenAIOAuthServerOptions,
-	client: CodexOAuthClient,
+	client: OpenAIOAuthTransport,
 ): Promise<Response> => {
 	const body = await request.json()
 	if (!isRecord(body)) {
@@ -30,37 +26,13 @@ export const handleResponsesRequest = async (
 		)
 	}
 
-	const wantsStream = body.stream === true
 	const upstream = await client.request("/responses", {
 		method: "POST",
 		headers: {
 			"Content-Type": "application/json",
 		},
-		body: JSON.stringify(
-			normalizeCodexResponsesBody(body, {
-				forceStream: true,
-				instructions: settings.instructions,
-				store: settings.store,
-			}),
-		),
+		body: JSON.stringify(body),
+		signal: request.signal,
 	})
-
-	if (!upstream.ok) {
-		return copyUpstreamResponse(upstream)
-	}
-
-	if (wantsStream) {
-		return new Response(upstream.body, {
-			status: upstream.status,
-			headers: {
-				...sseHeaders,
-				...corsHeaders,
-			},
-		})
-	}
-
-	const completed = await collectCompletedResponseFromSse(
-		upstream.body ?? new ReadableStream(),
-	)
-	return toJsonResponse(completed)
+	return copyUpstreamResponse(upstream)
 }

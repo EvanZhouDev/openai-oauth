@@ -1,12 +1,12 @@
+import type { OpenAIOAuthProvider } from "@openai-oauth/ai-sdk"
 import { streamText } from "ai"
-import type { OpenAIOAuthProvider } from "../../openai-oauth-provider/src/index.js"
 import {
 	createToolSet,
 	toModelMessages,
 	toToolChoice,
 } from "./chat-messages.js"
 import { emitRequestLog } from "./logging.js"
-import { corsHeaders, mapFinishReason, sseHeaders, toUsage } from "./shared.js"
+import { mapFinishReason, sseHeaders, toUsage } from "./shared.js"
 import type {
 	ChatRequest,
 	OpenAIOAuthServerLogEvent,
@@ -262,9 +262,6 @@ export const streamChatCompletions = async (
 
 	return new Response(stream, {
 		status: 200,
-		headers: {
-			...sseHeaders,
-			...corsHeaders,
-		},
+		headers: sseHeaders,
 	})
 }

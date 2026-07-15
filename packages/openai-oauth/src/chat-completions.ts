@@ -1,5 +1,5 @@
+import type { OpenAIOAuthProvider } from "@openai-oauth/ai-sdk"
 import { generateText } from "ai"
-import type { OpenAIOAuthProvider } from "../../openai-oauth-provider/src/index.js"
 import {
 	createToolSet,
 	toModelMessages,

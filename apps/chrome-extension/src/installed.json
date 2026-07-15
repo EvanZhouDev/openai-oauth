@@ -1,0 +1,6 @@
+{
+	"installed": true,
+	"name": "sign-in-with-chatgpt",
+	"protocol": "openai-oauth-browser-extension",
+	"protocolVersion": 1
+}

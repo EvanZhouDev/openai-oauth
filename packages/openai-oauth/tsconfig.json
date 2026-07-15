@@ -1,7 +1,9 @@
 {
 	"extends": "../../tsconfig.base.json",
 	"compilerOptions": {
-		"outDir": "dist"
+		"allowArbitraryExtensions": true,
+		"outDir": "dist",
+		"types": ["node"]
 	},
 	"include": ["src"],
 	"exclude": ["node_modules", "dist"]

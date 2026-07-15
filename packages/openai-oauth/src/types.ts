@@ -1,5 +1,5 @@
 import type { Server as HttpServer } from "node:http"
-import type { CodexOAuthSettings } from "../../openai-oauth-core/src/index.js"
+import type { LocalOpenAIOAuthOptions } from "@openai-oauth/local"
 
 export type JsonValue =
 	| null
@@ -65,7 +65,15 @@ export type ChatRequest = {
 	stop?: string | string[]
 	max_tokens?: number
 	parallel_tool_calls?: boolean
-	reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high"
+	reasoning_effort?:
+		| "none"
+		| "minimal"
+		| "low"
+		| "medium"
+		| "high"
+		| "xhigh"
+		| "max"
+		| "ultra"
 }
 
 export type ChatRequestSummary = {
@@ -110,20 +118,7 @@ export type OpenAIOAuthServerLogEvent =
 			requestId: string
 	  }
 
-export const defaultOpenAIOAuthModels: readonly string[] = [
-	"gpt-5.4",
-	"gpt-5.3-codex",
-	"gpt-5.3-codex-spark",
-	"gpt-5.2",
-	"gpt-5.1",
-	"gpt-5.1-codex",
-	"gpt-5.1-codex-max",
-]
-
-export type OpenAIOAuthServerOptions = Omit<
-	CodexOAuthSettings,
-	"responsesState"
-> & {
+export type OpenAIOAuthServerOptions = LocalOpenAIOAuthOptions & {
 	host?: string
 	port?: number
 	models?: string[]
@@ -136,6 +131,7 @@ export type RunningOpenAIOAuthServer = {
 	host: string
 	port: number
 	url: string
+	models: string[]
 	close: () => Promise<void>
 }
 

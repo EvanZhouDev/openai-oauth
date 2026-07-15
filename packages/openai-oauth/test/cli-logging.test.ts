@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 import {
+	cliMessages,
 	dim,
 	installCliWarningLogger,
+	toAlreadyRunningMessage,
+	toBackgroundStartupMessage,
+	toDetachedMessage,
+	toForegroundStartupMessage,
+	toRunningMessage,
 	toStartupMessage,
 	underline,
 } from "../src/cli-logging.js"
@@ -24,6 +30,88 @@ describe("cli logging", () => {
 				"Use this as your OpenAI base URL. No API key is required.",
 				"",
 				"Available Models: gpt-5.4, gpt-5.3-codex",
+			].join("\n"),
+		)
+	})
+
+	test("formats foreground controls and startup copy", () => {
+		expect(cliMessages.backgroundActions).toBe(
+			"Stop with `npx openai-oauth stop` or see logs with `npx openai-oauth logs --follow`",
+		)
+		expect(cliMessages.foregroundControls).toBe(
+			"[d] Run in background  [q] Quit",
+		)
+		expect(
+			toForegroundStartupMessage("http://127.0.0.1:10531/v1", [
+				"gpt-5.4",
+				"gpt-5.4-mini",
+			]),
+		).toBe(
+			[
+				"OpenAI-compatible endpoint ready at http://127.0.0.1:10531/v1",
+				"Use this as your OpenAI base URL. No API key is required.",
+				"",
+				"Available Models: gpt-5.4, gpt-5.4-mini",
+				"",
+				"[d] Run in background  [q] Quit",
+			].join("\n"),
+		)
+	})
+
+	test("formats detached startup copy", () => {
+		expect(
+			toBackgroundStartupMessage("http://127.0.0.1:10531/v1", [
+				"gpt-5.4",
+				"gpt-5.4-mini",
+			]),
+		).toBe(
+			[
+				"OpenAI-compatible endpoint ready at http://127.0.0.1:10531/v1",
+				"Use this as your OpenAI base URL. No API key is required.",
+				"",
+				"Available Models: gpt-5.4, gpt-5.4-mini",
+				"",
+				"Stop with `npx openai-oauth stop` or see logs with `npx openai-oauth logs --follow`",
+			].join("\n"),
+		)
+	})
+
+	test("formats running status copy", () => {
+		expect(toRunningMessage("http://127.0.0.1:10531/v1")).toBe(
+			[
+				"OpenAI OAuth is running at http://127.0.0.1:10531/v1",
+				"",
+				"Stop with `npx openai-oauth stop` or see logs with `npx openai-oauth logs --follow`",
+			].join("\n"),
+		)
+	})
+
+	test("formats foreground-to-background confirmation", () => {
+		expect(toDetachedMessage("http://127.0.0.1:10531/v1")).toBe(
+			[
+				"OpenAI OAuth is now running in the background at http://127.0.0.1:10531/v1",
+				"",
+				"Stop with `npx openai-oauth stop` or see logs with `npx openai-oauth logs --follow`",
+			].join("\n"),
+		)
+	})
+
+	test("formats already-running copy", () => {
+		expect(toAlreadyRunningMessage("http://127.0.0.1:10531/v1")).toBe(
+			[
+				"OpenAI OAuth is already running at http://127.0.0.1:10531/v1",
+				"",
+				"Stop with `npx openai-oauth stop` or see logs with `npx openai-oauth logs --follow`",
+			].join("\n"),
+		)
+	})
+
+	test("formats not-running copy", () => {
+		expect(cliMessages.notRunningWithStart).toBe(
+			[
+				"OpenAI OAuth is not running.",
+				"",
+				"Start with `npx openai-oauth`",
 			].join("\n"),
 		)
 	})
