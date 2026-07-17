@@ -4,7 +4,10 @@ import {
 	fetchCodexModelCatalog,
 	isPublicCodexModel,
 } from "./models.js"
-import { collectCompletedResponseFromSse } from "./sse.js"
+import {
+	collectCompletedResponseFromSse,
+	observeServerSentEventIds,
+} from "./sse.js"
 import {
 	CodexResponsesState,
 	type CodexResponsesStateOptions,
@@ -737,14 +740,14 @@ const prepareResponsesRequestBody = async (
 		}
 
 		if (state?.requiresCachedState(normalized)) {
-			await state.waitForPendingCaptures()
+			await state.waitForRequiredState(normalized)
 		}
 
 		const expanded = state?.expandRequestBody(normalized) ?? normalized
 
 		return {
 			body: JSON.stringify(expanded),
-			requestBody: expanded,
+			requestBody: normalized,
 			wantsStream,
 		}
 	} catch {
@@ -752,11 +755,11 @@ const prepareResponsesRequestBody = async (
 	}
 }
 
-const captureResponsesState = (
+const captureResponsesState = async (
 	response: Response,
 	requestBody: Record<string, unknown> | undefined,
 	state: CodexResponsesState | undefined,
-): Response => {
+): Promise<Response> => {
 	if (
 		state == null ||
 		requestBody == null ||
@@ -766,13 +769,32 @@ const captureResponsesState = (
 		return response
 	}
 
-	const [returnedBody, cachedBody] = response.body.tee()
-	const capturePromise = collectCompletedResponseFromSse(cachedBody)
+	let resolveCapture: (() => void) | undefined
+	const captureDone = new Promise<void>((resolve) => {
+		resolveCapture = resolve
+	})
+	let resolveIdentified: (() => void) | undefined
+	const identified = new Promise<void>((resolve) => {
+		resolveIdentified = resolve
+	})
+	const observedBody = observeServerSentEventIds(response.body, {
+		onItemId: (id) => state.registerPendingItem(id, captureDone),
+		onResponseId: (id) => {
+			state.registerPendingResponse(id, captureDone)
+			resolveIdentified?.()
+		},
+	})
+	const [returnedBody, cachedBody] = observedBody.tee()
+	void collectCompletedResponseFromSse(cachedBody)
 		.then((completedResponse) => {
 			state.rememberResponse(completedResponse, requestBody)
 		})
 		.catch(() => undefined)
-	state.trackPendingCapture(capturePromise)
+		.finally(() => {
+			resolveIdentified?.()
+			resolveCapture?.()
+		})
+	await identified
 
 	return new Response(returnedBody, {
 		status: response.status,

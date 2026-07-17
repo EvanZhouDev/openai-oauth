@@ -143,7 +143,7 @@ describe("openai oauth cli", () => {
 		expect(toServerOptions(parsed).responsesMaxItems).toBe(2_000)
 	})
 
-	test("rejects invalid responses continuation state", () => {
+	test("rejects invalid responses continuation options", () => {
 		expect(() => parseCliArgs(["--responses-state", "persistent"])).toThrow()
 		expect(() => parseCliArgs(["--responses-max-responses", "0"])).toThrow()
 		expect(() => parseCliArgs(["--responses-max-items", "1.5"])).toThrow()
@@ -236,7 +236,7 @@ describe("openai oauth cli", () => {
 			"continue conversations by saved response or item ID",
 		)
 		expect(help).toContain(
-			"memory stores a bounded cache of response inputs and outputs until the server stops",
+			"memory stores response inputs and outputs in shared history chains until the server stops",
 		)
 		expect(help).toContain("stateless rejects continuation IDs")
 	})

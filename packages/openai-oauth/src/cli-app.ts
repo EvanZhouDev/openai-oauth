@@ -110,8 +110,8 @@ const helpLines = [
 	"  --no-open                  Print the login URL without opening a browser.",
 	"  --login-timeout-ms <ms>    Login timeout. Default: 300000",
 	"  --responses-state <mode>   Choose whether clients can continue conversations by saved response or item ID.",
-	"                               memory stores a bounded cache of response inputs and outputs until the server stops; stateless rejects continuation IDs. Default: stateless.",
-	`  --responses-max-responses <count>  Maximum saved responses in memory mode. Default: ${DEFAULT_CODEX_RESPONSES_MAX_RESPONSES}.`,
+	"                               memory stores response inputs and outputs in shared history chains until the server stops; stateless rejects continuation IDs. Default: stateless.",
+	`  --responses-max-responses <count>  Maximum saved response lookup IDs in memory mode. Default: ${DEFAULT_CODEX_RESPONSES_MAX_RESPONSES}.`,
 	`  --responses-max-items <count>      Maximum saved response items in memory mode. Default: ${DEFAULT_CODEX_RESPONSES_MAX_ITEMS}.`,
 	"",
 	"Flags",
@@ -178,13 +178,13 @@ const createCliParser = (argv: string[]) =>
 			choices: ["stateless", "memory"] as const,
 			default: "stateless" as const,
 			describe:
-				"Choose whether clients can continue conversations by saved response or item ID. Memory stores a bounded cache of response inputs and outputs until the server stops; stateless rejects continuation IDs.",
+				"Choose whether clients can continue conversations by saved response or item ID. Memory stores response inputs and outputs in shared history chains until the server stops; stateless rejects continuation IDs.",
 		})
 		.option("responses-max-responses", {
 			type: "number",
 			default: DEFAULT_CODEX_RESPONSES_MAX_RESPONSES,
 			coerce: parsePositiveInteger,
-			describe: "Maximum saved responses retained in memory mode.",
+			describe: "Maximum saved response lookup IDs retained in memory mode.",
 		})
 		.option("responses-max-items", {
 			type: "number",

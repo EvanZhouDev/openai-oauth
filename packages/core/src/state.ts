@@ -1,8 +1,14 @@
 type JsonRecord = Record<string, unknown>
 
 type CachedResponseEntry = {
+	parent?: CachedResponseEntry
 	input: unknown[]
 	output: JsonRecord[]
+}
+
+type PreparedRequestEntry = {
+	parent?: CachedResponseEntry
+	input: unknown[]
 }
 
 export type CodexResponsesStateSnapshot = {
@@ -61,7 +67,12 @@ const trimOldestEntries = <T>(
 export class CodexResponsesState {
 	private readonly items = new Map<string, JsonRecord>()
 	private readonly responses = new Map<string, CachedResponseEntry>()
-	private readonly pendingCaptures = new Set<Promise<void>>()
+	private readonly preparedRequests = new WeakMap<
+		JsonRecord,
+		PreparedRequestEntry
+	>()
+	private readonly pendingItems = new Map<string, Promise<void>>()
+	private readonly pendingResponses = new Map<string, Promise<void>>()
 	private readonly onChange?: (snapshot: CodexResponsesStateSnapshot) => void
 	private readonly maxItems: number
 	private readonly maxResponses: number
@@ -102,19 +113,45 @@ export class CodexResponsesState {
 		trimOldestEntries(this.responses, this.maxResponses)
 	}
 
-	async waitForPendingCaptures(): Promise<void> {
-		if (this.pendingCaptures.size === 0) {
-			return
-		}
-
-		await Promise.allSettled([...this.pendingCaptures])
+	registerPendingItem(id: string, promise: Promise<void>): void {
+		this.registerPendingId(this.pendingItems, id, promise)
 	}
 
-	trackPendingCapture(promise: Promise<void>): void {
-		this.pendingCaptures.add(promise)
-		void promise.finally(() => {
-			this.pendingCaptures.delete(promise)
-		})
+	registerPendingResponse(id: string, promise: Promise<void>): void {
+		this.registerPendingId(this.pendingResponses, id, promise)
+	}
+
+	async waitForRequiredState(body: JsonRecord): Promise<void> {
+		const pending = new Set<Promise<void>>()
+		const previousResponseId =
+			typeof body.previous_response_id === "string"
+				? body.previous_response_id
+				: undefined
+		if (previousResponseId != null && !this.responses.has(previousResponseId)) {
+			const capture = this.pendingResponses.get(previousResponseId)
+			if (capture != null) {
+				pending.add(capture)
+			}
+		}
+
+		if (Array.isArray(body.input)) {
+			for (const item of body.input) {
+				if (
+					!isRecord(item) ||
+					item.type !== "item_reference" ||
+					typeof item.id !== "string" ||
+					this.items.has(item.id)
+				) {
+					continue
+				}
+				const capture = this.pendingItems.get(item.id)
+				if (capture != null) {
+					pending.add(capture)
+				}
+			}
+		}
+
+		await Promise.allSettled(pending)
 	}
 
 	requiresCachedState(body: JsonRecord): boolean {
@@ -147,11 +184,14 @@ export class CodexResponsesState {
 		const directInput = Array.isArray(body.input)
 			? this.expandInput(body.input)
 			: body.input
+		this.preparedRequests.set(body, {
+			parent: previousHistory,
+			input: Array.isArray(directInput) ? directInput : [],
+		})
 
 		if (previousHistory != null) {
 			nextBody.input = [
-				...cloneValue(previousHistory.input),
-				...cloneValue(previousHistory.output),
+				...this.materializeHistory(previousHistory),
 				...(Array.isArray(directInput) ? directInput : []),
 			]
 			delete nextBody.previous_response_id
@@ -196,12 +236,28 @@ export class CodexResponsesState {
 			return
 		}
 
-		const input = Array.isArray(requestBody.input)
-			? requestBody.input.map((item) => cloneValue(item))
-			: []
+		const preparedRequest = this.preparedRequests.get(requestBody)
+		this.preparedRequests.delete(requestBody)
+		const previousResponseId =
+			typeof requestBody.previous_response_id === "string"
+				? requestBody.previous_response_id
+				: undefined
+		const parent =
+			preparedRequest != null
+				? preparedRequest.parent
+				: previousResponseId == null
+					? undefined
+					: this.responses.get(previousResponseId)
+		const input =
+			preparedRequest != null
+				? preparedRequest.input.map((item) => cloneValue(item))
+				: Array.isArray(requestBody.input)
+					? this.expandInput(requestBody.input)
+					: []
 
 		this.responses.delete(responseId)
 		this.responses.set(responseId, {
+			parent,
 			input,
 			output,
 		})
@@ -222,10 +278,50 @@ export class CodexResponsesState {
 			})),
 			responses: [...this.responses.entries()].map(([id, response]) => ({
 				id,
-				input: response.input.map((item) => cloneValue(item)),
+				input: this.materializeInput(response),
 				output: response.output.map((item) => cloneValue(item)),
 			})),
 		}
+	}
+
+	private responseChain(response: CachedResponseEntry): CachedResponseEntry[] {
+		const chain: CachedResponseEntry[] = []
+		let current: CachedResponseEntry | undefined = response
+		while (current != null) {
+			chain.push(current)
+			current = current.parent
+		}
+		return chain.reverse()
+	}
+
+	private registerPendingId(
+		map: Map<string, Promise<void>>,
+		id: string,
+		promise: Promise<void>,
+	): void {
+		map.set(id, promise)
+		void promise.finally(() => {
+			if (map.get(id) === promise) {
+				map.delete(id)
+			}
+		})
+	}
+
+	private materializeInput(response: CachedResponseEntry): unknown[] {
+		const chain = this.responseChain(response)
+		return chain.flatMap((entry, index) => [
+			...entry.input.map((item) => cloneValue(item)),
+			...(index < chain.length - 1
+				? entry.output.map((item) => cloneValue(item))
+				: []),
+		])
+	}
+
+	private materializeHistory(response: CachedResponseEntry): unknown[] {
+		return this.responseChain(response).flatMap((entry) => [
+			...entry.input.map((item) => cloneValue(item)),
+			...entry.output.map((item) => cloneValue(item)),
+		])
 	}
 
 	private expandInput(input: unknown[]): unknown[] {

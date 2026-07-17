@@ -52,7 +52,7 @@ Common flags:
 | Model allowlist | `--models` | Account-specific Codex models discovered from ChatGPT |
 | Auth file path | `--oauth-file` | `$CODEX_HOME/auth.json` or `~/.codex/auth.json` |
 | Responses continuation | `--responses-state` | `stateless` |
-| Saved response limit | `--responses-max-responses` | `256` |
+| Saved response lookup limit | `--responses-max-responses` | `256` |
 | Saved response-item limit | `--responses-max-items` | `2000` |
 | Open browser | `--open` / `--no-open` | `--open` |
 | Login timeout | `--login-timeout-ms` | `300000` |
@@ -65,13 +65,13 @@ The CLI resolves the latest published Codex client version automatically. Advanc
 
 ### Responses continuation state
 
-The server is stateless by default, so clients must send their full conversation history with every Responses request. Clients that continue with `previous_response_id` or `item_reference` can opt into the bounded in-memory state already provided by `@openai-oauth/core`:
+The server is stateless by default, so clients must send their full conversation history with every Responses request. Clients that continue with `previous_response_id` or `item_reference` can opt into the in-memory continuation state already provided by `@openai-oauth/core`:
 
 ```bash
 npx openai-oauth --responses-state memory
 ```
 
-Memory mode stores a bounded cache of response inputs and outputs, plus saved response items, only in the server process. It defaults to 256 responses and 2,000 items; use `--responses-max-responses` and `--responses-max-items` to change those positive-integer limits. The cache does not persist across restarts, so references created by a previous process cannot be continued; start a new client conversation after restarting the server. The server still sends expanded full history upstream, where repeated prompt prefixes can remain eligible for upstream prompt caching.
+Memory mode stores response inputs and outputs as shared history chains, plus saved response items, only in the server process. It defaults to 256 response lookup IDs and 2,000 items; use `--responses-max-responses` and `--responses-max-items` to change those positive-integer count limits. The limits do not cap bytes, and retained descendants keep their shared ancestors reachable. The cache does not persist across restarts, so references created by a previous process cannot be continued; start a new client conversation after restarting the server. The server still sends expanded full history upstream, where repeated prompt prefixes can remain eligible for upstream prompt caching.
 
 The same mode is available programmatically through `responsesState: "memory"` on `createOpenAIOAuthFetchHandler()` and `startOpenAIOAuthServer()`. Set `responsesMaxResponses` and `responsesMaxItems` to configure the bounds.
 

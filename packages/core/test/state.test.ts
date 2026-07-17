@@ -156,6 +156,140 @@ describe("CodexResponsesState", () => {
 		])
 	})
 
+	test("shares prior history across response branches", () => {
+		const state = new CodexResponsesState()
+		state.rememberResponse(
+			{
+				id: "resp_1",
+				output: [{ id: "msg_1", type: "message", content: "Root reply" }],
+			},
+			{ input: [{ role: "user", content: "Root" }] },
+		)
+		state.rememberResponse(
+			{
+				id: "resp_2",
+				output: [{ id: "msg_2", type: "message", content: "Left reply" }],
+			},
+			{
+				previous_response_id: "resp_1",
+				input: [{ role: "user", content: "Left" }],
+			},
+		)
+		state.rememberResponse(
+			{
+				id: "resp_3",
+				output: [{ id: "msg_3", type: "message", content: "Right reply" }],
+			},
+			{
+				previous_response_id: "resp_1",
+				input: [{ role: "user", content: "Right" }],
+			},
+		)
+
+		expect(
+			state.expandRequestBody({
+				previous_response_id: "resp_2",
+				input: [{ role: "user", content: "Continue left" }],
+			}).input,
+		).toEqual([
+			{ role: "user", content: "Root" },
+			{ id: "msg_1", type: "message", content: "Root reply" },
+			{ role: "user", content: "Left" },
+			{ id: "msg_2", type: "message", content: "Left reply" },
+			{ role: "user", content: "Continue left" },
+		])
+		expect(
+			state.expandRequestBody({
+				previous_response_id: "resp_3",
+				input: [{ role: "user", content: "Continue right" }],
+			}).input,
+		).toEqual([
+			{ role: "user", content: "Root" },
+			{ id: "msg_1", type: "message", content: "Root reply" },
+			{ role: "user", content: "Right" },
+			{ id: "msg_3", type: "message", content: "Right reply" },
+			{ role: "user", content: "Continue right" },
+		])
+	})
+
+	test("keeps ancestor data reachable after its response ID is evicted", () => {
+		const state = new CodexResponsesState({ maxResponses: 1 })
+		state.rememberResponse(
+			{
+				id: "resp_1",
+				output: [{ id: "msg_1", type: "message", content: "First reply" }],
+			},
+			{ input: [{ role: "user", content: "First" }] },
+		)
+		state.rememberResponse(
+			{
+				id: "resp_2",
+				output: [{ id: "msg_2", type: "message", content: "Second reply" }],
+			},
+			{
+				previous_response_id: "resp_1",
+				input: [{ role: "user", content: "Second" }],
+			},
+		)
+
+		expect(
+			state.expandRequestBody({
+				previous_response_id: "resp_1",
+				input: [],
+			}),
+		).toMatchObject({ previous_response_id: "resp_1", input: [] })
+		expect(
+			state.expandRequestBody({
+				previous_response_id: "resp_2",
+				input: [],
+			}).input,
+		).toEqual([
+			{ role: "user", content: "First" },
+			{ id: "msg_1", type: "message", content: "First reply" },
+			{ role: "user", content: "Second" },
+			{ id: "msg_2", type: "message", content: "Second reply" },
+		])
+	})
+
+	test("captures the prepared parent after its lookup ID is evicted", () => {
+		const state = new CodexResponsesState({ maxResponses: 1 })
+		state.rememberResponse(
+			{
+				id: "resp_1",
+				output: [{ id: "msg_1", type: "message", content: "First reply" }],
+			},
+			{ input: [{ role: "user", content: "First" }] },
+		)
+		const secondRequest = {
+			previous_response_id: "resp_1",
+			input: [{ role: "user", content: "Second" }],
+		}
+		state.expandRequestBody(secondRequest)
+		state.rememberResponse(
+			{ id: "unrelated", output: [] },
+			{ input: [{ role: "user", content: "Unrelated" }] },
+		)
+		state.rememberResponse(
+			{
+				id: "resp_2",
+				output: [{ id: "msg_2", type: "message", content: "Second reply" }],
+			},
+			secondRequest,
+		)
+
+		expect(
+			state.expandRequestBody({
+				previous_response_id: "resp_2",
+				input: [],
+			}).input,
+		).toEqual([
+			{ role: "user", content: "First" },
+			{ id: "msg_1", type: "message", content: "First reply" },
+			{ role: "user", content: "Second" },
+			{ id: "msg_2", type: "message", content: "Second reply" },
+		])
+	})
+
 	test("uses configurable response and item cache bounds", () => {
 		const state = new CodexResponsesState({
 			maxResponses: 1,
@@ -199,6 +333,69 @@ describe("CodexResponsesState", () => {
 				input: [{ type: "item_reference", id: "msg_2" }],
 			}).input,
 		).toEqual([{ id: "msg_2", type: "message" }])
+	})
+
+	test("waits only for captures required by the request", async () => {
+		let resolveRequired: (() => void) | undefined
+		const required = new Promise<void>((resolve) => {
+			resolveRequired = resolve
+		})
+		const unrelated = new Promise<void>(() => {})
+		const state = new CodexResponsesState()
+		state.registerPendingResponse("resp_required", required)
+		state.registerPendingResponse("resp_unrelated", unrelated)
+
+		let settled = false
+		const waiting = state
+			.waitForRequiredState({
+				previous_response_id: "resp_required",
+				input: [],
+			})
+			.then(() => {
+				settled = true
+			})
+		await Promise.resolve()
+		expect(settled).toBe(false)
+
+		resolveRequired?.()
+		await waiting
+		expect(settled).toBe(true)
+	})
+
+	test("waits for the capture associated with a referenced item", async () => {
+		let resolveRequired: (() => void) | undefined
+		const required = new Promise<void>((resolve) => {
+			resolveRequired = resolve
+		})
+		const state = new CodexResponsesState()
+		state.registerPendingItem("item_required", required)
+
+		let settled = false
+		const waiting = state
+			.waitForRequiredState({
+				input: [{ type: "item_reference", id: "item_required" }],
+			})
+			.then(() => {
+				settled = true
+			})
+		await Promise.resolve()
+		expect(settled).toBe(false)
+
+		resolveRequired?.()
+		await waiting
+		expect(settled).toBe(true)
+	})
+
+	test("does not block an unknown item reference on an unrelated capture", async () => {
+		const unrelated = new Promise<void>(() => {})
+		const state = new CodexResponsesState()
+		state.registerPendingResponse("resp_unrelated", unrelated)
+
+		await expect(
+			state.waitForRequiredState({
+				input: [{ type: "item_reference", id: "item_unknown" }],
+			}),
+		).resolves.toBeUndefined()
 	})
 
 	test("rejects invalid cache bounds", () => {

@@ -252,13 +252,13 @@ The CLI also supports a few configuration options that generally do not need to 
       <td>Responses continuation</td>
       <td><code>--responses-state</code></td>
       <td><code>stateless</code></td>
-      <td>Use <code>memory</code> to support <code>previous_response_id</code> and <code>item_reference</code> with bounded, process-local state.</td>
+      <td>Use <code>memory</code> to support <code>previous_response_id</code> and <code>item_reference</code> with process-local state.</td>
     </tr>
     <tr>
-      <td>Saved response limit</td>
+      <td>Saved response lookup limit</td>
       <td><code>--responses-max-responses</code></td>
       <td><code>256</code></td>
-      <td>Maximum saved responses retained in memory mode.</td>
+      <td>Maximum saved response lookup IDs retained in memory mode.</td>
     </tr>
     <tr>
       <td>Saved response-item limit</td>
@@ -297,7 +297,7 @@ The CLI server remains stateless by default. Clients that continue Responses con
 npx openai-oauth --responses-state memory
 ```
 
-Memory mode stores a bounded cache of response inputs and outputs, plus saved response items, in the server process. It defaults to 256 responses and 2,000 items; use <code>--responses-max-responses</code> and <code>--responses-max-items</code> to change those limits. The cache is discarded when the process exits, so clients must begin a new conversation after a restart. The server expands references into full history before sending the request upstream; repeated prompt prefixes can still be eligible for upstream prompt caching.
+Memory mode stores response inputs and outputs as shared history chains, plus saved response items, in the server process. It defaults to 256 response lookup IDs and 2,000 items; use <code>--responses-max-responses</code> and <code>--responses-max-items</code> to change those entry-count limits. The limits do not cap bytes, and retained descendants keep their shared ancestors reachable. The cache is discarded when the process exits, so clients must begin a new conversation after a restart. The server expands references into full history before sending the request upstream; repeated prompt prefixes can still be eligible for upstream prompt caching.
 
 The SDK is primarily built around two concepts:
 

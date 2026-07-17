@@ -594,6 +594,7 @@ describe("openai oauth server", () => {
 		)
 		const handler = createOpenAIOAuthFetchHandler({
 			authFilePath,
+			codexVersion: "0.144.1",
 			ensureFresh: false,
 			fetch,
 			responsesState: "memory",
@@ -644,7 +645,10 @@ describe("openai oauth server", () => {
 			}),
 		)
 		expect(secondResponse.status).toBe(200)
-		await secondResponse.text()
+		expect(secondResponse.headers.get("content-type")).toContain(
+			"text/event-stream",
+		)
+		expect(await secondResponse.text()).toContain("Found two objects.")
 
 		const calls = upstreamResponseCalls(fetch)
 		expect(calls).toHaveLength(2)
@@ -668,6 +672,175 @@ describe("openai oauth server", () => {
 				status: "completed",
 			},
 			toolOutput,
+		])
+
+		await fs.rm(path.dirname(authFilePath), {
+			recursive: true,
+			force: true,
+		})
+	})
+
+	test("does not let chat completions evict Responses continuation state", async () => {
+		const authFilePath = await createAuthFile()
+		let responseRequestCount = 0
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			if (String(input).includes("/backend-api/codex/models?")) {
+				return Response.json({
+					models: [{ slug: "gpt-5.6-sol", visibility: "list" }],
+				})
+			}
+
+			responseRequestCount += 1
+			if (responseRequestCount === 1) {
+				return createSseResponse([
+					[
+						"response.completed",
+						{
+							type: "response.completed",
+							response: {
+								id: "resp_direct",
+								status: "completed",
+								output: [
+									{
+										id: "msg_direct",
+										type: "message",
+										role: "assistant",
+										content: [{ type: "output_text", text: "Direct reply" }],
+									},
+								],
+							},
+						},
+					],
+				])
+			}
+			if (responseRequestCount === 2) {
+				return createSseResponse([
+					[
+						"response.created",
+						{
+							type: "response.created",
+							response: {
+								id: "resp_chat",
+								model: "gpt-5.6-sol",
+								status: "in_progress",
+							},
+						},
+					],
+					[
+						"response.output_item.added",
+						{
+							type: "response.output_item.added",
+							output_index: 0,
+							item: { id: "msg_chat", type: "message", role: "assistant" },
+						},
+					],
+					[
+						"response.output_text.delta",
+						{
+							type: "response.output_text.delta",
+							item_id: "msg_chat",
+							output_index: 0,
+							content_index: 0,
+							delta: "Chat reply",
+						},
+					],
+					[
+						"response.output_item.done",
+						{
+							type: "response.output_item.done",
+							output_index: 0,
+							item: { id: "msg_chat", type: "message", role: "assistant" },
+						},
+					],
+					[
+						"response.completed",
+						{
+							type: "response.completed",
+							response: {
+								id: "resp_chat",
+								model: "gpt-5.6-sol",
+								status: "completed",
+								output: [],
+								usage: { input_tokens: 1, output_tokens: 1 },
+							},
+						},
+					],
+				])
+			}
+
+			return createSseResponse([
+				[
+					"response.completed",
+					{
+						type: "response.completed",
+						response: { id: "resp_next", status: "completed", output: [] },
+					},
+				],
+			])
+		})
+		const handler = createOpenAIOAuthFetchHandler({
+			authFilePath,
+			codexVersion: "0.144.1",
+			ensureFresh: false,
+			fetch,
+			responsesState: "memory",
+			responsesMaxResponses: 1,
+		})
+		const firstInput = { role: "user", content: "First direct request" }
+		const firstResponse = await handler(
+			new Request("http://localhost/v1/responses", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					model: "gpt-5.6-sol",
+					input: [firstInput],
+					stream: true,
+				}),
+			}),
+		)
+		await firstResponse.text()
+
+		const chatResponse = await handler(
+			new Request("http://localhost/v1/chat/completions", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					model: "gpt-5.6-sol",
+					messages: [{ role: "user", content: "Unrelated chat request" }],
+				}),
+			}),
+		)
+		expect(chatResponse.status).toBe(200)
+		await chatResponse.text()
+
+		const continued = await handler(
+			new Request("http://localhost/v1/responses", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					model: "gpt-5.6-sol",
+					previous_response_id: "resp_direct",
+					input: [{ role: "user", content: "Continue direct request" }],
+					stream: true,
+				}),
+			}),
+		)
+		await continued.text()
+
+		const calls = upstreamResponseCalls(fetch)
+		expect(calls).toHaveLength(3)
+		const [, continuedInit] = calls[2] ?? []
+		const replayed = JSON.parse(String(continuedInit?.body))
+		expect(replayed.previous_response_id).toBeUndefined()
+		expect(replayed.input).toEqual([
+			firstInput,
+			{
+				id: "msg_direct",
+				type: "message",
+				role: "assistant",
+				content: [{ type: "output_text", text: "Direct reply" }],
+			},
+			{ role: "user", content: "Continue direct request" },
 		])
 
 		await fs.rm(path.dirname(authFilePath), {

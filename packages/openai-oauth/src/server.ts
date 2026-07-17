@@ -123,7 +123,15 @@ const createOpenAIOAuthRuntime = (settings: OpenAIOAuthServerOptions = {}) => {
 					},
 				}),
 	})
-	const provider = createOpenAIOAuth(client)
+	const chatClient =
+		responsesState === "stateless"
+			? client
+			: createOpenAIOAuthTransport({
+					...transportSettings,
+					auth: () => auth.getSession(),
+					responsesState: false,
+				})
+	const provider = createOpenAIOAuth(chatClient)
 	const resolveModels = createModelResolver(client, settings.models)
 	const requestLogger = createRequestLogger(settings)
 
