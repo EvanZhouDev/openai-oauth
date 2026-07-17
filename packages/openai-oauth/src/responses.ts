@@ -17,7 +17,12 @@ export const handleResponsesRequest = async (
 	client: OpenAIOAuthTransport,
 	responsesState: OpenAIOAuthResponsesStateMode,
 ): Promise<Response> => {
-	const body = await request.json()
+	let body: unknown
+	try {
+		body = await request.json()
+	} catch {
+		return toErrorResponse("Request body must be valid JSON.")
+	}
 	if (!isRecord(body)) {
 		return toErrorResponse("Request body must be a JSON object.")
 	}

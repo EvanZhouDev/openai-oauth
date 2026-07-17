@@ -474,6 +474,28 @@ describe("openai oauth server", () => {
 		expect(fetch).not.toHaveBeenCalled()
 	})
 
+	test("returns a client error for malformed Responses JSON", async () => {
+		const fetch = vi.fn()
+		const handler = createOpenAIOAuthFetchHandler({ fetch })
+
+		const response = await handler(
+			new Request("http://localhost/v1/responses", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: "{",
+			}),
+		)
+
+		expect(response.status).toBe(400)
+		await expect(response.json()).resolves.toEqual({
+			error: {
+				message: "Request body must be valid JSON.",
+				type: "invalid_request_error",
+			},
+		})
+		expect(fetch).not.toHaveBeenCalled()
+	})
+
 	test("rejects item_reference without an upstream request in explicit stateless mode", async () => {
 		const authFilePath = await createAuthFile()
 		const fetch = vi.fn()
@@ -505,7 +527,7 @@ describe("openai oauth server", () => {
 		})
 	})
 
-	test("replays a Posit-shaped streamed tool continuation in memory mode", async () => {
+	test("replays a streamed tool continuation in memory mode", async () => {
 		const authFilePath = await createAuthFile()
 		let responseRequestCount = 0
 		const fetch = vi.fn(
@@ -548,7 +570,7 @@ describe("openai oauth server", () => {
 									type: "function_call",
 									id: "fc_1",
 									call_id: "call_1",
-									name: "inspect_r_environment",
+									name: "inspect_environment",
 									arguments: "{}",
 									status: "completed",
 								},
@@ -602,7 +624,7 @@ describe("openai oauth server", () => {
 
 		const firstInput = {
 			role: "user",
-			content: [{ type: "input_text", text: "Inspect the R environment." }],
+			content: [{ type: "input_text", text: "Inspect the environment." }],
 		}
 		const firstResponse = await handler(
 			new Request("http://localhost/v1/responses", {
@@ -615,7 +637,7 @@ describe("openai oauth server", () => {
 					tools: [
 						{
 							type: "function",
-							name: "inspect_r_environment",
+							name: "inspect_environment",
 							parameters: { type: "object", properties: {} },
 						},
 					],
@@ -667,7 +689,7 @@ describe("openai oauth server", () => {
 				type: "function_call",
 				id: "fc_1",
 				call_id: "call_1",
-				name: "inspect_r_environment",
+				name: "inspect_environment",
 				arguments: "{}",
 				status: "completed",
 			},
