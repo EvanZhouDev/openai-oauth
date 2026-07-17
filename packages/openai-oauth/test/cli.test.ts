@@ -220,7 +220,13 @@ describe("openai oauth cli", () => {
 		expect(help).toContain("-d, --detach")
 		expect(help).toContain("-f, --follow")
 		expect(help).toContain("--responses-state <mode>")
-		expect(help).toContain("memory is process-local and non-persistent")
+		expect(help).toContain(
+			"continue conversations by saved response or item ID",
+		)
+		expect(help).toContain(
+			"memory keeps bounded conversation history until the server stops",
+		)
+		expect(help).toContain("stateless rejects continuation IDs")
 	})
 
 	test("does not reuse server host and port for automatic login", () => {

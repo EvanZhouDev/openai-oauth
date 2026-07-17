@@ -96,7 +96,8 @@ const helpLines = [
 	"  --oauth-file <path>        Path to the local auth.json file.",
 	"  --no-open                  Print the login URL without opening a browser.",
 	"  --login-timeout-ms <ms>    Login timeout. Default: 300000",
-	"  --responses-state <mode>   Responses continuation state: stateless or memory. Default: stateless; memory is process-local and non-persistent.",
+	"  --responses-state <mode>   Choose whether clients can continue conversations by saved response or item ID.",
+	"                               memory keeps bounded conversation history until the server stops; stateless rejects continuation IDs. Default: stateless.",
 	"",
 	"Flags",
 	"  -d, --detach               Run in the background",
@@ -162,7 +163,7 @@ const createCliParser = (argv: string[]) =>
 			choices: ["stateless", "memory"] as const,
 			default: "stateless" as const,
 			describe:
-				"Responses continuation state. Memory is process-local and non-persistent.",
+				"Choose whether clients can continue conversations by saved response or item ID. Memory keeps bounded conversation history until the server stops; stateless rejects continuation IDs.",
 		})
 		.option("detach", {
 			alias: "d",
