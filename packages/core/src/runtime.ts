@@ -4,8 +4,14 @@ import {
 	fetchCodexModelCatalog,
 	isPublicCodexModel,
 } from "./models.js"
-import { collectCompletedResponseFromSse } from "./sse.js"
-import { CodexResponsesState } from "./state.js"
+import {
+	collectCompletedResponseFromSse,
+	observeServerSentEventIds,
+} from "./sse.js"
+import {
+	CodexResponsesState,
+	type CodexResponsesStateOptions,
+} from "./state.js"
 import { isRecord } from "./utils.js"
 
 export const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
@@ -109,6 +115,7 @@ type CodexOAuthRuntimeSettings = {
 	headers?: Record<string, string>
 	instructions?: string
 	responsesState?: CodexResponsesState | false
+	responsesStateOptions?: CodexResponsesStateOptions
 }
 
 export type OpenAIOAuthTransportOptions = Omit<
@@ -733,14 +740,14 @@ const prepareResponsesRequestBody = async (
 		}
 
 		if (state?.requiresCachedState(normalized)) {
-			await state.waitForPendingCaptures()
+			await state.waitForRequiredState(normalized)
 		}
 
 		const expanded = state?.expandRequestBody(normalized) ?? normalized
 
 		return {
 			body: JSON.stringify(expanded),
-			requestBody: expanded,
+			requestBody: normalized,
 			wantsStream,
 		}
 	} catch {
@@ -748,11 +755,11 @@ const prepareResponsesRequestBody = async (
 	}
 }
 
-const captureResponsesState = (
+const captureResponsesState = async (
 	response: Response,
 	requestBody: Record<string, unknown> | undefined,
 	state: CodexResponsesState | undefined,
-): Response => {
+): Promise<Response> => {
 	if (
 		state == null ||
 		requestBody == null ||
@@ -762,13 +769,32 @@ const captureResponsesState = (
 		return response
 	}
 
-	const [returnedBody, cachedBody] = response.body.tee()
-	const capturePromise = collectCompletedResponseFromSse(cachedBody)
+	let resolveCapture: (() => void) | undefined
+	const captureDone = new Promise<void>((resolve) => {
+		resolveCapture = resolve
+	})
+	let resolveIdentified: (() => void) | undefined
+	const identified = new Promise<void>((resolve) => {
+		resolveIdentified = resolve
+	})
+	const observedBody = observeServerSentEventIds(response.body, {
+		onItemId: (id) => state.registerPendingItem(id, captureDone),
+		onResponseId: (id) => {
+			state.registerPendingResponse(id, captureDone)
+			resolveIdentified?.()
+		},
+	})
+	const [returnedBody, cachedBody] = observedBody.tee()
+	void collectCompletedResponseFromSse(cachedBody)
 		.then((completedResponse) => {
 			state.rememberResponse(completedResponse, requestBody)
 		})
 		.catch(() => undefined)
-	state.trackPendingCapture(capturePromise)
+		.finally(() => {
+			resolveIdentified?.()
+			resolveCapture?.()
+		})
+	await identified
 
 	return new Response(returnedBody, {
 		status: response.status,
@@ -919,7 +945,8 @@ const createCodexOAuthFetch = (
 	const responsesState =
 		settings.responsesState === false
 			? undefined
-			: (settings.responsesState ?? new CodexResponsesState())
+			: (settings.responsesState ??
+				new CodexResponsesState(settings.responsesStateOptions))
 	const resolveModelCatalog = createModelCatalogResolver(
 		fetch,
 		baseURL,

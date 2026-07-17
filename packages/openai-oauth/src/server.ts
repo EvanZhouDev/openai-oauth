@@ -27,9 +27,24 @@ import {
 	writeWebResponse,
 } from "./shared.js"
 import type {
+	OpenAIOAuthResponsesStateMode,
 	OpenAIOAuthServerOptions,
 	RunningOpenAIOAuthServer,
 } from "./types.js"
+
+const resolveResponsesState = (
+	value: unknown,
+): OpenAIOAuthResponsesStateMode => {
+	if (value == null || value === "stateless") {
+		return "stateless"
+	}
+	if (value === "memory") {
+		return "memory"
+	}
+	throw new Error(
+		'Invalid `responsesState` option. Expected "stateless" or "memory".',
+	)
+}
 
 const handleRoutes = async (
 	request: Request,
@@ -37,12 +52,13 @@ const handleRoutes = async (
 	client: OpenAIOAuthTransport,
 	resolveModels: () => Promise<string[]>,
 	requestLogger: ReturnType<typeof createRequestLogger>,
+	responsesState: OpenAIOAuthResponsesStateMode,
 ): Promise<Response> => {
 	const url = new URL(request.url)
 	if (request.method === "GET" && url.pathname === "/health") {
 		return toJsonResponse({
 			ok: true,
-			replay_state: "stateless",
+			replay_state: responsesState,
 		})
 	}
 
@@ -68,7 +84,7 @@ const handleRoutes = async (
 	}
 
 	if (request.method === "POST" && url.pathname === "/v1/responses") {
-		return handleResponsesRequest(request, client)
+		return handleResponsesRequest(request, client, responsesState)
 	}
 
 	if (request.method === "POST" && url.pathname === "/v1/chat/completions") {
@@ -87,14 +103,35 @@ const handleRoutes = async (
 }
 
 const createOpenAIOAuthRuntime = (settings: OpenAIOAuthServerOptions = {}) => {
+	const {
+		responsesState: configuredResponsesState,
+		responsesMaxItems,
+		responsesMaxResponses,
+		...transportSettings
+	} = settings
+	const responsesState = resolveResponsesState(configuredResponsesState)
 	const auth = openaiCredentials(settings)
-	const sharedSettings = {
-		...settings,
+	const client = createOpenAIOAuthTransport({
+		...transportSettings,
 		auth: () => auth.getSession(),
-		responsesState: false as const,
-	}
-	const client = createOpenAIOAuthTransport(sharedSettings)
-	const provider = createOpenAIOAuth(client)
+		...(responsesState === "stateless"
+			? { responsesState: false as const }
+			: {
+					responsesStateOptions: {
+						maxItems: responsesMaxItems,
+						maxResponses: responsesMaxResponses,
+					},
+				}),
+	})
+	const chatClient =
+		responsesState === "stateless"
+			? client
+			: createOpenAIOAuthTransport({
+					...transportSettings,
+					auth: () => auth.getSession(),
+					responsesState: false,
+				})
+	const provider = createOpenAIOAuth(chatClient)
 	const resolveModels = createModelResolver(client, settings.models)
 	const requestLogger = createRequestLogger(settings)
 
@@ -106,6 +143,7 @@ const createOpenAIOAuthRuntime = (settings: OpenAIOAuthServerOptions = {}) => {
 				client,
 				resolveModels,
 				requestLogger,
+				responsesState,
 			)
 		} catch (error) {
 			return toErrorResponse(

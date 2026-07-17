@@ -2,7 +2,10 @@ import { promises as fs } from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { createOpenAIOAuthFetchHandler } from "../src/index.js"
+import {
+	createOpenAIOAuthFetchHandler,
+	startOpenAIOAuthServer,
+} from "../src/index.js"
 
 const createAuthFile = async (): Promise<string> => {
 	const root = await fs.mkdtemp(path.join(os.tmpdir(), "openai-oauth-server-"))
@@ -23,6 +26,26 @@ const createAuthFile = async (): Promise<string> => {
 	)
 	return authPath
 }
+
+const createSseResponse = (events: Array<[string, Record<string, unknown>]>) =>
+	new Response(
+		events
+			.flatMap(([event, data]) => [
+				`event: ${event}`,
+				`data: ${JSON.stringify(data)}`,
+				"",
+			])
+			.join("\n"),
+		{
+			status: 200,
+			headers: { "Content-Type": "text/event-stream" },
+		},
+	)
+
+const upstreamResponseCalls = (fetch: ReturnType<typeof vi.fn>) =>
+	fetch.mock.calls.filter(([input]) =>
+		String(input).endsWith("/backend-api/codex/responses"),
+	)
 
 describe("openai oauth server", () => {
 	afterEach(() => {
@@ -189,6 +212,65 @@ describe("openai oauth server", () => {
 			ok: true,
 			replay_state: "stateless",
 		})
+
+		const memoryHandler = createOpenAIOAuthFetchHandler({
+			responsesState: "memory",
+		})
+		const memoryHealth = await memoryHandler(
+			new Request("http://localhost/health"),
+		)
+
+		await expect(memoryHealth.json()).resolves.toEqual({
+			ok: true,
+			replay_state: "memory",
+		})
+	})
+
+	test("rejects an invalid programmatic replay state mode", () => {
+		expect(() =>
+			createOpenAIOAuthFetchHandler({
+				responsesState: "persistent" as never,
+			}),
+		).toThrow(
+			'Invalid `responsesState` option. Expected "stateless" or "memory".',
+		)
+	})
+
+	test("rejects invalid memory cache bounds", () => {
+		expect(() =>
+			createOpenAIOAuthFetchHandler({
+				responsesState: "memory",
+				responsesMaxResponses: 0,
+			}),
+		).toThrow("maxResponses must be a positive integer.")
+		expect(() =>
+			createOpenAIOAuthFetchHandler({
+				responsesState: "memory",
+				responsesMaxItems: 1.5,
+			}),
+		).toThrow("maxItems must be a positive integer.")
+	})
+
+	test("starts an HTTP server in memory replay mode", async () => {
+		const running = await startOpenAIOAuthServer({
+			host: "127.0.0.1",
+			port: 0,
+			models: ["gpt-5.6-sol"],
+			responsesState: "memory",
+		})
+
+		try {
+			const healthUrl = new URL("/health", running.url)
+			const response = await fetch(healthUrl)
+
+			expect(response.status).toBe(200)
+			await expect(response.json()).resolves.toEqual({
+				ok: true,
+				replay_state: "memory",
+			})
+		} finally {
+			await running.close()
+		}
 	})
 
 	test("does not opt the local proxy into browser CORS", async () => {
@@ -390,6 +472,403 @@ describe("openai oauth server", () => {
 
 		expect(response.status).toBe(400)
 		expect(fetch).not.toHaveBeenCalled()
+	})
+
+	test("returns a client error for malformed Responses JSON", async () => {
+		const fetch = vi.fn()
+		const handler = createOpenAIOAuthFetchHandler({ fetch })
+
+		const response = await handler(
+			new Request("http://localhost/v1/responses", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: "{",
+			}),
+		)
+
+		expect(response.status).toBe(400)
+		await expect(response.json()).resolves.toEqual({
+			error: {
+				message: "Request body must be valid JSON.",
+				type: "invalid_request_error",
+			},
+		})
+		expect(fetch).not.toHaveBeenCalled()
+	})
+
+	test("rejects item_reference without an upstream request in explicit stateless mode", async () => {
+		const authFilePath = await createAuthFile()
+		const fetch = vi.fn()
+		const handler = createOpenAIOAuthFetchHandler({
+			authFilePath,
+			ensureFresh: false,
+			fetch,
+			responsesState: "stateless",
+		})
+
+		const response = await handler(
+			new Request("http://localhost/v1/responses", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					model: "gpt-5.6-sol",
+					input: [{ type: "item_reference", id: "fc_1" }],
+					stream: true,
+				}),
+			}),
+		)
+
+		expect(response.status).toBe(400)
+		expect(fetch).not.toHaveBeenCalled()
+
+		await fs.rm(path.dirname(authFilePath), {
+			recursive: true,
+			force: true,
+		})
+	})
+
+	test("replays a streamed tool continuation in memory mode", async () => {
+		const authFilePath = await createAuthFile()
+		let responseRequestCount = 0
+		const fetch = vi.fn(
+			async (input: RequestInfo | URL, _init?: RequestInit) => {
+				if (String(input).includes("/backend-api/codex/models?")) {
+					return Response.json({
+						models: [{ slug: "gpt-5.6-sol", visibility: "list" }],
+					})
+				}
+
+				responseRequestCount += 1
+				if (responseRequestCount === 1) {
+					return createSseResponse([
+						[
+							"response.created",
+							{
+								type: "response.created",
+								response: { id: "resp_1", status: "in_progress" },
+							},
+						],
+						[
+							"response.output_item.done",
+							{
+								type: "response.output_item.done",
+								output_index: 0,
+								item: {
+									type: "reasoning",
+									id: "rs_1",
+									encrypted_content: "encrypted-reasoning",
+									summary: [],
+								},
+							},
+						],
+						[
+							"response.output_item.done",
+							{
+								type: "response.output_item.done",
+								output_index: 1,
+								item: {
+									type: "function_call",
+									id: "fc_1",
+									call_id: "call_1",
+									name: "inspect_environment",
+									arguments: "{}",
+									status: "completed",
+								},
+							},
+						],
+						[
+							"response.completed",
+							{
+								type: "response.completed",
+								response: {
+									id: "resp_1",
+									status: "completed",
+									output: [],
+								},
+							},
+						],
+					])
+				}
+
+				return createSseResponse([
+					[
+						"response.completed",
+						{
+							type: "response.completed",
+							response: {
+								id: "resp_2",
+								status: "completed",
+								output: [
+									{
+										type: "message",
+										id: "msg_2",
+										role: "assistant",
+										content: [
+											{ type: "output_text", text: "Found two objects." },
+										],
+									},
+								],
+							},
+						},
+					],
+				])
+			},
+		)
+		const handler = createOpenAIOAuthFetchHandler({
+			authFilePath,
+			codexVersion: "0.144.1",
+			ensureFresh: false,
+			fetch,
+			responsesState: "memory",
+		})
+
+		const firstInput = {
+			role: "user",
+			content: [{ type: "input_text", text: "Inspect the environment." }],
+		}
+		const firstResponse = await handler(
+			new Request("http://localhost/v1/responses", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					model: "gpt-5.6-sol",
+					input: [firstInput],
+					reasoning: { effort: "medium", summary: "detailed" },
+					tools: [
+						{
+							type: "function",
+							name: "inspect_environment",
+							parameters: { type: "object", properties: {} },
+						},
+					],
+					stream: true,
+				}),
+			}),
+		)
+		expect(firstResponse.status).toBe(200)
+		await firstResponse.text()
+
+		const toolOutput = {
+			type: "function_call_output",
+			call_id: "call_1",
+			output: '{"objects":["fit","counts"]}',
+		}
+		const secondResponse = await handler(
+			new Request("http://localhost/v1/responses", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					model: "gpt-5.6-sol",
+					previous_response_id: "resp_1",
+					input: [toolOutput],
+					reasoning: { effort: "medium", summary: "detailed" },
+					stream: true,
+				}),
+			}),
+		)
+		expect(secondResponse.status).toBe(200)
+		expect(secondResponse.headers.get("content-type")).toContain(
+			"text/event-stream",
+		)
+		expect(await secondResponse.text()).toContain("Found two objects.")
+
+		const calls = upstreamResponseCalls(fetch)
+		expect(calls).toHaveLength(2)
+		const [, secondInit] = calls[1] ?? []
+		const replayed = JSON.parse(String(secondInit?.body))
+		expect(replayed.previous_response_id).toBeUndefined()
+		expect(replayed.input).toEqual([
+			firstInput,
+			{
+				type: "reasoning",
+				id: "rs_1",
+				encrypted_content: "encrypted-reasoning",
+				summary: [],
+			},
+			{
+				type: "function_call",
+				id: "fc_1",
+				call_id: "call_1",
+				name: "inspect_environment",
+				arguments: "{}",
+				status: "completed",
+			},
+			toolOutput,
+		])
+
+		await fs.rm(path.dirname(authFilePath), {
+			recursive: true,
+			force: true,
+		})
+	})
+
+	test("does not let chat completions evict Responses continuation state", async () => {
+		const authFilePath = await createAuthFile()
+		let responseRequestCount = 0
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			if (String(input).includes("/backend-api/codex/models?")) {
+				return Response.json({
+					models: [{ slug: "gpt-5.6-sol", visibility: "list" }],
+				})
+			}
+
+			responseRequestCount += 1
+			if (responseRequestCount === 1) {
+				return createSseResponse([
+					[
+						"response.completed",
+						{
+							type: "response.completed",
+							response: {
+								id: "resp_direct",
+								status: "completed",
+								output: [
+									{
+										id: "msg_direct",
+										type: "message",
+										role: "assistant",
+										content: [{ type: "output_text", text: "Direct reply" }],
+									},
+								],
+							},
+						},
+					],
+				])
+			}
+			if (responseRequestCount === 2) {
+				return createSseResponse([
+					[
+						"response.created",
+						{
+							type: "response.created",
+							response: {
+								id: "resp_chat",
+								model: "gpt-5.6-sol",
+								status: "in_progress",
+							},
+						},
+					],
+					[
+						"response.output_item.added",
+						{
+							type: "response.output_item.added",
+							output_index: 0,
+							item: { id: "msg_chat", type: "message", role: "assistant" },
+						},
+					],
+					[
+						"response.output_text.delta",
+						{
+							type: "response.output_text.delta",
+							item_id: "msg_chat",
+							output_index: 0,
+							content_index: 0,
+							delta: "Chat reply",
+						},
+					],
+					[
+						"response.output_item.done",
+						{
+							type: "response.output_item.done",
+							output_index: 0,
+							item: { id: "msg_chat", type: "message", role: "assistant" },
+						},
+					],
+					[
+						"response.completed",
+						{
+							type: "response.completed",
+							response: {
+								id: "resp_chat",
+								model: "gpt-5.6-sol",
+								status: "completed",
+								output: [],
+								usage: { input_tokens: 1, output_tokens: 1 },
+							},
+						},
+					],
+				])
+			}
+
+			return createSseResponse([
+				[
+					"response.completed",
+					{
+						type: "response.completed",
+						response: { id: "resp_next", status: "completed", output: [] },
+					},
+				],
+			])
+		})
+		const handler = createOpenAIOAuthFetchHandler({
+			authFilePath,
+			codexVersion: "0.144.1",
+			ensureFresh: false,
+			fetch,
+			responsesState: "memory",
+			responsesMaxResponses: 1,
+		})
+		const firstInput = { role: "user", content: "First direct request" }
+		const firstResponse = await handler(
+			new Request("http://localhost/v1/responses", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					model: "gpt-5.6-sol",
+					input: [firstInput],
+					stream: true,
+				}),
+			}),
+		)
+		await firstResponse.text()
+
+		const chatResponse = await handler(
+			new Request("http://localhost/v1/chat/completions", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					model: "gpt-5.6-sol",
+					messages: [{ role: "user", content: "Unrelated chat request" }],
+				}),
+			}),
+		)
+		expect(chatResponse.status).toBe(200)
+		await chatResponse.text()
+
+		const continued = await handler(
+			new Request("http://localhost/v1/responses", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					model: "gpt-5.6-sol",
+					previous_response_id: "resp_direct",
+					input: [{ role: "user", content: "Continue direct request" }],
+					stream: true,
+				}),
+			}),
+		)
+		await continued.text()
+
+		const calls = upstreamResponseCalls(fetch)
+		expect(calls).toHaveLength(3)
+		const [, continuedInit] = calls[2] ?? []
+		const replayed = JSON.parse(String(continuedInit?.body))
+		expect(replayed.previous_response_id).toBeUndefined()
+		expect(replayed.input).toEqual([
+			firstInput,
+			{
+				id: "msg_direct",
+				type: "message",
+				role: "assistant",
+				content: [{ type: "output_text", text: "Direct reply" }],
+			},
+			{ role: "user", content: "Continue direct request" },
+		])
+
+		await fs.rm(path.dirname(authFilePath), {
+			recursive: true,
+			force: true,
+		})
 	})
 
 	test("exposes OpenAI-compatible image generation and edit routes", async () => {
