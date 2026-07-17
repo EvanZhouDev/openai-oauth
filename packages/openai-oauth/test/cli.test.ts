@@ -111,6 +111,8 @@ describe("openai oauth cli", () => {
 			"https://auth.example.com/oauth/token",
 			"--oauth-file",
 			"/tmp/auth.json",
+			"--responses-state",
+			"memory",
 		])
 
 		expect(toServerOptions(parsed)).toMatchObject({
@@ -122,7 +124,19 @@ describe("openai oauth cli", () => {
 			clientId: "client-123",
 			tokenUrl: "https://auth.example.com/oauth/token",
 			authFilePath: "/tmp/auth.json",
+			responsesState: "memory",
 		})
+	})
+
+	test("defaults responses continuation state to stateless", () => {
+		const parsed = parseCliArgs([])
+
+		expect(parsed.responsesState).toBe("stateless")
+		expect(toServerOptions(parsed).responsesState).toBe("stateless")
+	})
+
+	test("rejects invalid responses continuation state", () => {
+		expect(() => parseCliArgs(["--responses-state", "persistent"])).toThrow()
 	})
 
 	test("parses login command options", () => {
@@ -205,6 +219,8 @@ describe("openai oauth cli", () => {
 		expect(help).toContain("npx openai-oauth@latest stop")
 		expect(help).toContain("-d, --detach")
 		expect(help).toContain("-f, --follow")
+		expect(help).toContain("--responses-state <mode>")
+		expect(help).toContain("memory is process-local and non-persistent")
 	})
 
 	test("does not reuse server host and port for automatic login", () => {

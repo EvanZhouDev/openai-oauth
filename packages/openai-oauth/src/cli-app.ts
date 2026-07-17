@@ -45,6 +45,7 @@ export type CliArgs = {
 	authFilePath?: string
 	openBrowser?: boolean
 	loginTimeoutMs?: number
+	responsesState: "stateless" | "memory"
 	detach?: boolean
 	follow?: boolean
 	internalDetachedChild?: boolean
@@ -95,6 +96,7 @@ const helpLines = [
 	"  --oauth-file <path>        Path to the local auth.json file.",
 	"  --no-open                  Print the login URL without opening a browser.",
 	"  --login-timeout-ms <ms>    Login timeout. Default: 300000",
+	"  --responses-state <mode>   Responses continuation state: stateless or memory. Default: stateless; memory is process-local and non-persistent.",
 	"",
 	"Flags",
 	"  -d, --detach               Run in the background",
@@ -154,6 +156,13 @@ const createCliParser = (argv: string[]) =>
 		.option("login-timeout-ms", {
 			type: "number",
 			describe: "Login timeout in milliseconds. Default: 300000",
+		})
+		.option("responses-state", {
+			type: "string",
+			choices: ["stateless", "memory"] as const,
+			default: "stateless" as const,
+			describe:
+				"Responses continuation state. Memory is process-local and non-persistent.",
 		})
 		.option("detach", {
 			alias: "d",
@@ -216,6 +225,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 		authFilePath: parsed.oauthFile,
 		openBrowser: parsed.open,
 		loginTimeoutMs: parsed.loginTimeoutMs,
+		responsesState: parsed.responsesState,
 		detach: parsed.detach,
 		follow: parsed.follow,
 		internalDetachedChild: parsed.internalDetachedChild,
@@ -231,6 +241,7 @@ export const toServerOptions = (args: CliArgs) => ({
 	clientId: args.clientId,
 	tokenUrl: args.tokenUrl,
 	authFilePath: args.authFilePath,
+	responsesState: args.responsesState,
 })
 
 export const toLoginOptions = (args: CliArgs) => ({

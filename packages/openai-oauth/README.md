@@ -51,6 +51,7 @@ Common flags:
 | Port | `--port` | `10531` |
 | Model allowlist | `--models` | Account-specific Codex models discovered from ChatGPT |
 | Auth file path | `--oauth-file` | `$CODEX_HOME/auth.json` or `~/.codex/auth.json` |
+| Responses continuation | `--responses-state` | `stateless` |
 | Open browser | `--open` / `--no-open` | `--open` |
 | Login timeout | `--login-timeout-ms` | `300000` |
 
@@ -59,6 +60,18 @@ Binding `--host` beyond loopback exposes the proxy to your network. Anyone who c
 Login listens on loopback and uses `http://localhost:1455/auth/callback`, the local callback URL accepted by OpenAI OAuth.
 
 The CLI resolves the latest published Codex client version automatically. Advanced flags also exist for overriding it, the upstream Codex base URL, OAuth client id, and OAuth token URL.
+
+### Responses continuation state
+
+The server is stateless by default, so clients must send their full conversation history with every Responses request. Clients that continue with `previous_response_id` or `item_reference` can opt into the bounded in-memory state already provided by `@openai-oauth/core`:
+
+```bash
+npx openai-oauth --responses-state memory
+```
+
+Memory mode retains conversation and tool content only in the server process. It does not persist across restarts, so references created by a previous process cannot be continued; start a new client conversation after restarting the server. The state is bounded and discarded when the process exits. The server still sends expanded full history upstream, where repeated prompt prefixes can remain eligible for upstream prompt caching.
+
+The same mode is available programmatically through `responsesState: "memory"` on `createOpenAIOAuthFetchHandler()` and `startOpenAIOAuthServer()`.
 
 ## More
 
