@@ -155,4 +155,58 @@ describe("CodexResponsesState", () => {
 			},
 		])
 	})
+
+	test("uses configurable response and item cache bounds", () => {
+		const state = new CodexResponsesState({
+			maxResponses: 1,
+			maxItems: 1,
+		})
+
+		state.rememberResponse(
+			{
+				id: "resp_1",
+				output: [{ id: "msg_1", type: "message" }],
+			},
+			{ input: [{ role: "user", content: "First" }] },
+		)
+		state.rememberResponse(
+			{
+				id: "resp_2",
+				output: [{ id: "msg_2", type: "message" }],
+			},
+			{ input: [{ role: "user", content: "Second" }] },
+		)
+
+		expect(
+			state.expandRequestBody({
+				previous_response_id: "resp_1",
+				input: [],
+			}),
+		).toMatchObject({ previous_response_id: "resp_1", input: [] })
+		expect(
+			state.expandRequestBody({
+				previous_response_id: "resp_2",
+				input: [],
+			}).previous_response_id,
+		).toBeUndefined()
+		expect(
+			state.expandRequestBody({
+				input: [{ type: "item_reference", id: "msg_1" }],
+			}).input,
+		).toEqual([{ type: "item_reference", id: "msg_1" }])
+		expect(
+			state.expandRequestBody({
+				input: [{ type: "item_reference", id: "msg_2" }],
+			}).input,
+		).toEqual([{ id: "msg_2", type: "message" }])
+	})
+
+	test("rejects invalid cache bounds", () => {
+		expect(() => new CodexResponsesState({ maxResponses: 0 })).toThrow(
+			"maxResponses must be a positive integer.",
+		)
+		expect(() => new CodexResponsesState({ maxItems: 1.5 })).toThrow(
+			"maxItems must be a positive integer.",
+		)
+	})
 })

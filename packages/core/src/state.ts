@@ -20,10 +20,24 @@ export type CodexResponsesStateSnapshot = {
 export type CodexResponsesStateOptions = {
 	snapshot?: CodexResponsesStateSnapshot
 	onChange?: (snapshot: CodexResponsesStateSnapshot) => void
+	maxItems?: number
+	maxResponses?: number
 }
 
-const MAX_ITEM_CACHE_SIZE = 2_000
-const MAX_RESPONSE_CACHE_SIZE = 256
+export const DEFAULT_CODEX_RESPONSES_MAX_ITEMS = 2_000
+export const DEFAULT_CODEX_RESPONSES_MAX_RESPONSES = 256
+
+const resolveCacheBound = (
+	value: number | undefined,
+	fallback: number,
+	name: string,
+): number => {
+	const resolved = value ?? fallback
+	if (!Number.isSafeInteger(resolved) || resolved < 1) {
+		throw new RangeError(`${name} must be a positive integer.`)
+	}
+	return resolved
+}
 
 const isRecord = (value: unknown): value is JsonRecord =>
 	typeof value === "object" && value !== null && !Array.isArray(value)
@@ -49,9 +63,21 @@ export class CodexResponsesState {
 	private readonly responses = new Map<string, CachedResponseEntry>()
 	private readonly pendingCaptures = new Set<Promise<void>>()
 	private readonly onChange?: (snapshot: CodexResponsesStateSnapshot) => void
+	private readonly maxItems: number
+	private readonly maxResponses: number
 
 	constructor(options: CodexResponsesStateOptions = {}) {
 		this.onChange = options.onChange
+		this.maxItems = resolveCacheBound(
+			options.maxItems,
+			DEFAULT_CODEX_RESPONSES_MAX_ITEMS,
+			"maxItems",
+		)
+		this.maxResponses = resolveCacheBound(
+			options.maxResponses,
+			DEFAULT_CODEX_RESPONSES_MAX_RESPONSES,
+			"maxResponses",
+		)
 
 		for (const entry of options.snapshot?.items ?? []) {
 			if (typeof entry.id !== "string") {
@@ -72,8 +98,8 @@ export class CodexResponsesState {
 			})
 		}
 
-		trimOldestEntries(this.items, MAX_ITEM_CACHE_SIZE)
-		trimOldestEntries(this.responses, MAX_RESPONSE_CACHE_SIZE)
+		trimOldestEntries(this.items, this.maxItems)
+		trimOldestEntries(this.responses, this.maxResponses)
 	}
 
 	async waitForPendingCaptures(): Promise<void> {
@@ -161,7 +187,7 @@ export class CodexResponsesState {
 			changed = true
 		}
 
-		trimOldestEntries(this.items, MAX_ITEM_CACHE_SIZE)
+		trimOldestEntries(this.items, this.maxItems)
 
 		if (responseId == null || requestBody == null) {
 			if (changed) {
@@ -181,7 +207,7 @@ export class CodexResponsesState {
 		})
 		changed = true
 
-		trimOldestEntries(this.responses, MAX_RESPONSE_CACHE_SIZE)
+		trimOldestEntries(this.responses, this.maxResponses)
 
 		if (changed) {
 			this.emitChange()

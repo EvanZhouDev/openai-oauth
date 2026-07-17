@@ -21,13 +21,17 @@ import { createOpenAIOAuthTransport } from "@openai-oauth/core";
 
 const transport = createOpenAIOAuthTransport({
 	auth: async () => session,
+	responsesStateOptions: {
+		maxResponses: 256,
+		maxItems: 2_000,
+	},
 });
 
 const baseURL = transport.baseURL;
 const fetch = transport.fetch;
 ```
 
-The transport supports Responses, model discovery, image generation, and multipart image editing. Client adapters build higher-level interfaces such as Chat Completions on top.
+The transport supports Responses, model discovery, image generation, and multipart image editing. Its in-memory Responses cache maps saved response IDs to request inputs and response outputs, and saved item IDs to response items. The cache defaults to 256 responses and 2,000 items; `responsesStateOptions` can set either positive-integer bound. Client adapters build higher-level interfaces such as Chat Completions on top.
 
 Create an OAuth request:
 

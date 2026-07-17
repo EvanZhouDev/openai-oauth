@@ -113,6 +113,10 @@ describe("openai oauth cli", () => {
 			"/tmp/auth.json",
 			"--responses-state",
 			"memory",
+			"--responses-max-responses",
+			"32",
+			"--responses-max-items",
+			"400",
 		])
 
 		expect(toServerOptions(parsed)).toMatchObject({
@@ -125,6 +129,8 @@ describe("openai oauth cli", () => {
 			tokenUrl: "https://auth.example.com/oauth/token",
 			authFilePath: "/tmp/auth.json",
 			responsesState: "memory",
+			responsesMaxResponses: 32,
+			responsesMaxItems: 400,
 		})
 	})
 
@@ -133,10 +139,14 @@ describe("openai oauth cli", () => {
 
 		expect(parsed.responsesState).toBe("stateless")
 		expect(toServerOptions(parsed).responsesState).toBe("stateless")
+		expect(toServerOptions(parsed).responsesMaxResponses).toBe(256)
+		expect(toServerOptions(parsed).responsesMaxItems).toBe(2_000)
 	})
 
 	test("rejects invalid responses continuation state", () => {
 		expect(() => parseCliArgs(["--responses-state", "persistent"])).toThrow()
+		expect(() => parseCliArgs(["--responses-max-responses", "0"])).toThrow()
+		expect(() => parseCliArgs(["--responses-max-items", "1.5"])).toThrow()
 	})
 
 	test("parses login command options", () => {
@@ -220,11 +230,13 @@ describe("openai oauth cli", () => {
 		expect(help).toContain("-d, --detach")
 		expect(help).toContain("-f, --follow")
 		expect(help).toContain("--responses-state <mode>")
+		expect(help).toContain("--responses-max-responses <count>")
+		expect(help).toContain("--responses-max-items <count>")
 		expect(help).toContain(
 			"continue conversations by saved response or item ID",
 		)
 		expect(help).toContain(
-			"memory keeps bounded conversation history until the server stops",
+			"memory stores a bounded cache of response inputs and outputs until the server stops",
 		)
 		expect(help).toContain("stateless rejects continuation IDs")
 	})

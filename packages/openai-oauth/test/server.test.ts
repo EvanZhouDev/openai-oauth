@@ -236,6 +236,21 @@ describe("openai oauth server", () => {
 		)
 	})
 
+	test("rejects invalid memory cache bounds", () => {
+		expect(() =>
+			createOpenAIOAuthFetchHandler({
+				responsesState: "memory",
+				responsesMaxResponses: 0,
+			}),
+		).toThrow("maxResponses must be a positive integer.")
+		expect(() =>
+			createOpenAIOAuthFetchHandler({
+				responsesState: "memory",
+				responsesMaxItems: 1.5,
+			}),
+		).toThrow("maxItems must be a positive integer.")
+	})
+
 	test("starts an HTTP server in memory replay mode", async () => {
 		const running = await startOpenAIOAuthServer({
 			host: "127.0.0.1",

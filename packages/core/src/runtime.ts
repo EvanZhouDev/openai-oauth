@@ -5,7 +5,10 @@ import {
 	isPublicCodexModel,
 } from "./models.js"
 import { collectCompletedResponseFromSse } from "./sse.js"
-import { CodexResponsesState } from "./state.js"
+import {
+	CodexResponsesState,
+	type CodexResponsesStateOptions,
+} from "./state.js"
 import { isRecord } from "./utils.js"
 
 export const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
@@ -109,6 +112,7 @@ type CodexOAuthRuntimeSettings = {
 	headers?: Record<string, string>
 	instructions?: string
 	responsesState?: CodexResponsesState | false
+	responsesStateOptions?: CodexResponsesStateOptions
 }
 
 export type OpenAIOAuthTransportOptions = Omit<
@@ -919,7 +923,8 @@ const createCodexOAuthFetch = (
 	const responsesState =
 		settings.responsesState === false
 			? undefined
-			: (settings.responsesState ?? new CodexResponsesState())
+			: (settings.responsesState ??
+				new CodexResponsesState(settings.responsesStateOptions))
 	const resolveModelCatalog = createModelCatalogResolver(
 		fetch,
 		baseURL,

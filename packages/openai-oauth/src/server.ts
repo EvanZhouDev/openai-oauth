@@ -103,8 +103,12 @@ const handleRoutes = async (
 }
 
 const createOpenAIOAuthRuntime = (settings: OpenAIOAuthServerOptions = {}) => {
-	const { responsesState: configuredResponsesState, ...transportSettings } =
-		settings
+	const {
+		responsesState: configuredResponsesState,
+		responsesMaxItems,
+		responsesMaxResponses,
+		...transportSettings
+	} = settings
 	const responsesState = resolveResponsesState(configuredResponsesState)
 	const auth = openaiCredentials(settings)
 	const client = createOpenAIOAuthTransport({
@@ -112,7 +116,12 @@ const createOpenAIOAuthRuntime = (settings: OpenAIOAuthServerOptions = {}) => {
 		auth: () => auth.getSession(),
 		...(responsesState === "stateless"
 			? { responsesState: false as const }
-			: {}),
+			: {
+					responsesStateOptions: {
+						maxItems: responsesMaxItems,
+						maxResponses: responsesMaxResponses,
+					},
+				}),
 	})
 	const provider = createOpenAIOAuth(client)
 	const resolveModels = createModelResolver(client, settings.models)

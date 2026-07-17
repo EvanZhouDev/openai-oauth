@@ -126,6 +126,8 @@ export type OpenAIOAuthServerOptions = LocalOpenAIOAuthOptions & {
 	models?: string[]
 	codexVersion?: string
 	responsesState?: OpenAIOAuthResponsesStateMode
+	responsesMaxItems?: number
+	responsesMaxResponses?: number
 	requestLogger?: (event: OpenAIOAuthServerLogEvent) => void
 }
 

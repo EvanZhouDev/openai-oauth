@@ -255,6 +255,18 @@ The CLI also supports a few configuration options that generally do not need to 
       <td>Use <code>memory</code> to support <code>previous_response_id</code> and <code>item_reference</code> with bounded, process-local state.</td>
     </tr>
     <tr>
+      <td>Saved response limit</td>
+      <td><code>--responses-max-responses</code></td>
+      <td><code>256</code></td>
+      <td>Maximum saved responses retained in memory mode.</td>
+    </tr>
+    <tr>
+      <td>Saved response-item limit</td>
+      <td><code>--responses-max-items</code></td>
+      <td><code>2000</code></td>
+      <td>Maximum saved response items retained in memory mode.</td>
+    </tr>
+    <tr>
       <td>Open browser</td>
       <td><code>--open</code> / <code>--no-open</code></td>
       <td><code>--open</code></td>
@@ -285,7 +297,7 @@ The CLI server remains stateless by default. Clients that continue Responses con
 npx openai-oauth --responses-state memory
 ```
 
-Memory mode retains bounded conversation and tool content in the server process. It is discarded when the process exits, so clients must begin a new conversation after a restart. The server expands references into full history before sending the request upstream; repeated prompt prefixes can still be eligible for upstream prompt caching.
+Memory mode stores a bounded cache of response inputs and outputs, plus saved response items, in the server process. It defaults to 256 responses and 2,000 items; use <code>--responses-max-responses</code> and <code>--responses-max-items</code> to change those limits. The cache is discarded when the process exits, so clients must begin a new conversation after a restart. The server expands references into full history before sending the request upstream; repeated prompt prefixes can still be eligible for upstream prompt caching.
 
 The SDK is primarily built around two concepts:
 
