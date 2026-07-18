@@ -51,7 +51,10 @@ const toChatCompletionResponse = (
 					content: result.text.length > 0 ? result.text : null,
 					tool_calls: toolCalls.length > 0 ? toolCalls : undefined,
 				},
-				finish_reason: mapFinishReason(result.finishReason),
+				finish_reason:
+					toolCalls.length > 0 && mapFinishReason(result.finishReason) !== "tool_calls"
+						? "tool_calls"
+						: mapFinishReason(result.finishReason),
 			},
 		],
 		usage: toUsage(result.usage),

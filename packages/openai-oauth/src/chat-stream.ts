@@ -199,7 +199,7 @@ export const streamChatCompletions = async (
 						)
 						break
 					}
-					case "finish":
+					case "finish": {
 						logChatStreamResult(
 							logContext.logger,
 							logContext.requestId,
@@ -207,6 +207,18 @@ export const streamChatCompletions = async (
 							part.finishReason,
 							part.totalUsage,
 						)
+						// If any tool calls were emitted during this stream but
+						// the upstream finishReason didn't map to "tool_calls"
+						// (Codex Responses API often reports "stop" or
+						// undefined even when the turn ends with a tool call),
+						// override it. OpenAI-compat clients rely on
+						// finish_reason="tool_calls" on the final chunk to
+						// drain accumulated tool_call deltas.
+						const mappedFinishReason = mapFinishReason(part.finishReason)
+						const finishReason =
+							toolIndexes.size > 0 && mappedFinishReason !== "tool_calls"
+								? "tool_calls"
+								: mappedFinishReason
 						controller.enqueue(
 							encodeSse({
 								id,
@@ -217,7 +229,7 @@ export const streamChatCompletions = async (
 									{
 										index: 0,
 										delta: {},
-										finish_reason: mapFinishReason(part.finishReason),
+										finish_reason: finishReason,
 									},
 								],
 							}),
@@ -233,6 +245,7 @@ export const streamChatCompletions = async (
 							}),
 						)
 						break
+					}
 					case "error":
 						emitRequestLog(logContext.logger, {
 							type: "chat_error",
