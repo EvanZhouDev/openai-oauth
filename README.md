@@ -153,6 +153,30 @@ For more information on each of the packages, refer to package-specific `README.
 
 See [Known Limitations](#known-limitations) for more information.
 
+### Playground
+
+Every feature above is testable end to end in a browser at
+[openai-oauth.vercel.app/playground](https://openai-oauth.vercel.app/playground).
+
+Sign in with your ChatGPT account and the playground gives you a full chat
+interface where you can switch endpoints, toggle streaming, change reasoning
+effort, and watch tool calls resolve. A wire inspector shows every request body
+and SSE frame exchanged, so you can confirm exactly what went over the network.
+
+| What it exercises | How |
+| --- | --- |
+| `/v1/models` | Populates the model picker with the models your ChatGPT plan can reach |
+| `/v1/responses` | Endpoint toggle, sending the full conversation on every turn |
+| `/v1/chat/completions` | Endpoint toggle, same conversation replayed in chat format |
+| Streaming responses | "Stream the response" toggle, on and off |
+| Toolcalls | Three sample tools run in your browser, with results fed back for the next round |
+| Reasoning traces | Reasoning effort selector plus a collapsible trace on each answer |
+
+The page is part of the demo app in `apps/demo`. Its `/api/v1/*` route is a
+small OpenAI-compatible gateway that reads request-bound credentials with
+`openaiCredentials(request)` — the same pattern any hosted app would use, since
+browsers cannot call the upstream API directly because of CORS.
+
 ## `openai-oauth` CLI
 
 ```bash

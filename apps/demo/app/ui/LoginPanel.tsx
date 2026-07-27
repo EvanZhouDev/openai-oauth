@@ -734,14 +734,19 @@ export function LoginPanel() {
 					Add Sign in with ChatGPT to your product, start a <br />
 					dev proxy, or connect through the TypeScript SDK.
 				</p>
-				<a
-					className="docsButton"
-					href="https://github.com/EvanZhouDev/openai-oauth#readme"
-					rel="noreferrer"
-					target="_blank"
-				>
-					Go to Documentation
-				</a>
+				<div className="docsCtaActions">
+					<a
+						className="docsButton"
+						href="https://github.com/EvanZhouDev/openai-oauth#readme"
+						rel="noreferrer"
+						target="_blank"
+					>
+						Go to Documentation
+					</a>
+					<a className="docsButton docsButton--ghost" href="/playground">
+						Open the Playground
+					</a>
+				</div>
 			</section>
 		</main>
 	)
