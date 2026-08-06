@@ -190,6 +190,10 @@ export function AgentApp() {
 		return (
 			<SignIn
 				error={auth.error?.message}
+				installUrl={
+					auth.status === "needs-extension" ? auth.installUrl : undefined
+				}
+				onCancel={() => void auth.reset()}
 				onSignIn={() => void auth.login()}
 				status={auth.status}
 			/>

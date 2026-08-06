@@ -14,6 +14,15 @@ bun run build                # builds the workspace packages
 bun run --cwd apps/agent dev # http://localhost:3001
 ```
 
+The dev and start scripts bind `0.0.0.0` and honour `$PORT`, so Replit,
+Codespaces and similar hosts can reach the app.
+
+**On a hosted URL, sign-in needs the browser extension.** ChatGPT's OAuth
+handoff only completes locally on its own; anywhere else it goes through the
+open-source [Sign in with ChatGPT extension](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna).
+The app detects this and shows an install screen with a continue button —
+running locally needs no extension at all.
+
 ## What it does
 
 | Capability | How it works |
