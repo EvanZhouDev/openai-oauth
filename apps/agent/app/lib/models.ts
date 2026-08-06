@@ -29,8 +29,8 @@ let cachedVersion: string | undefined
 let cachedVersionExpiresAt = 0
 
 /**
- * The Codex model list is keyed by client version — newer Codex releases are
- * shown newer models, including ones OpenAI is still testing.
+ * The Codex model list is keyed by client version: the server decides what a
+ * client of that version may see, so this tracks the latest published Codex.
  */
 export const resolveCodexClientVersion = async (): Promise<string> => {
 	if (process.env.CODEX_CLIENT_VERSION) {
@@ -120,7 +120,11 @@ const describeModel = (model: AgentModel): string => {
 		traits.push("Balanced everyday model")
 	}
 	if (model.experimental) {
-		traits.push("not publicly listed")
+		traits.push(
+			model.visibility === "hide"
+				? "hidden from the public list"
+				: "not publicly listed",
+		)
 	}
 	if (!model.supportedInApi) {
 		traits.push("may not accept API requests")
@@ -137,10 +141,12 @@ const toAgentModel = (raw: Record<string, unknown>): AgentModel | null => {
 	const visibility =
 		typeof raw.visibility === "string" ? raw.visibility : undefined
 	const supportedInApi = raw.supported_in_api !== false
+	// The catalog marks models "list" (public) or "hide". Hidden usually means
+	// superseded rather than upcoming, so group them without promising either.
 	const experimental =
 		(visibility !== undefined && visibility !== "list") ||
 		!supportedInApi ||
-		/experimental|preview|alpha|beta|internal|canary|test/i.test(id)
+		/experimental|preview|alpha|beta|internal|canary/i.test(id)
 
 	const model: AgentModel = {
 		id,
@@ -180,9 +186,9 @@ const sortModels = (models: AgentModel[]): AgentModel[] =>
 	})
 
 /**
- * Reads the full Codex catalog — including models whose visibility keeps them
- * out of the public list. Nothing here is hard coded, so a model OpenAI ships
- * tomorrow shows up the next time the page is loaded.
+ * Reads the Codex catalog without the public-only filter, so models marked
+ * `visibility: "hide"` are listed too. Nothing is hard coded: whatever OpenAI
+ * serves this account and client version is what appears.
  */
 export const fetchModelCatalog = async (
 	transport: OpenAIOAuthTransport,

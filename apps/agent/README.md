@@ -18,7 +18,7 @@ bun run --cwd apps/agent dev # http://localhost:3001
 
 | Capability | How it works |
 | --- | --- |
-| **Every model on your account** | `GET /api/models` reads the live Codex catalog on each page load. Models OpenAI is still testing (`visibility` other than `list`) appear under *Experimental & unlisted* — refresh the page and new ones show up. |
+| **Every model on your account** | `GET /api/models` reads the live Codex catalog on each page load, skipping the filter that normally keeps non-public entries out. Models the catalog marks `visibility: "hide"` appear under *Hidden & unlisted* — in practice that is often a superseded model rather than an upcoming one. Nothing is hard coded, so whatever OpenAI serves your account and client version is what you get. |
 | **Plans without being asked** | The agent calls `update_plan` before multi-step work; the plan renders as a live checklist that ticks itself off. |
 | **Writes real files** | `write_file`, `edit_file`, `read_file`, `list_files`, `delete_path`, all confined to the conversation's workspace directory. |
 | **Sandbox terminal** | `run_command` runs shell commands in that directory with a timeout and captured output. This is how it tests the code it writes. |

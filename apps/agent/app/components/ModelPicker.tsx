@@ -64,7 +64,7 @@ export function ModelPicker({
 					{model.label}
 					{model.experimental ? (
 						<span className="badge experimental">
-							{model.supportedInApi ? "unlisted" : "untested"}
+							{model.supportedInApi ? "hidden" : "no api"}
 						</span>
 					) : null}
 				</span>
@@ -94,7 +94,7 @@ export function ModelPicker({
 					<>
 						<span>{selected?.label ?? value ?? "Select a model"}</span>
 						{selected?.experimental ? (
-							<span className="badge experimental">unlisted</span>
+							<span className="badge experimental">hidden</span>
 						) : null}
 						<ChevronDownIcon className="icon sm" />
 					</>
@@ -120,7 +120,7 @@ export function ModelPicker({
 					{experimental.length > 0 ? (
 						<>
 							<div className="menuDivider" />
-							<div className="menuLabel">Experimental &amp; unlisted</div>
+							<div className="menuLabel">Hidden &amp; unlisted</div>
 							{experimental.map(renderItem)}
 						</>
 					) : null}
@@ -141,8 +141,8 @@ export function ModelPicker({
 								Refresh model list
 							</span>
 							<span className="menuItemDescription">
-								Live from your account — new and experimental models appear as
-								soon as OpenAI ships them.
+								Read live from your account, including models the public list
+								hides. What shows up is whatever OpenAI serves your plan.
 							</span>
 						</span>
 					</button>
