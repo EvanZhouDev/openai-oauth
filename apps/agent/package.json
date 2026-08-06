@@ -1,0 +1,31 @@
+{
+	"name": "agent",
+	"version": "1.0.0",
+	"private": true,
+	"license": "Apache-2.0",
+	"type": "module",
+	"scripts": {
+		"dev": "next dev --port 3001",
+		"build": "next build",
+		"start": "next start --port 3001",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@ai-sdk/provider-utils": "4.0.19",
+		"@ai-sdk/react": "3.0.118",
+		"@openai-oauth/ai-sdk": "workspace:*",
+		"@openai-oauth/core": "workspace:*",
+		"@openai-oauth/react": "workspace:*",
+		"ai": "6.0.116",
+		"next": "16.2.10",
+		"react": "^19.2.3",
+		"react-dom": "^19.2.3",
+		"zod": "^3.25.76"
+	},
+	"devDependencies": {
+		"@types/node": "20.17.24",
+		"@types/react": "^19.2.7",
+		"@types/react-dom": "^19.2.3",
+		"typescript": "5.9.2"
+	}
+}

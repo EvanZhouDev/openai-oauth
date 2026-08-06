@@ -12,6 +12,28 @@
         "typescript": "5.9.2",
       },
     },
+    "apps/agent": {
+      "name": "agent",
+      "version": "1.0.0",
+      "dependencies": {
+        "@ai-sdk/provider-utils": "4.0.19",
+        "@ai-sdk/react": "3.0.118",
+        "@openai-oauth/ai-sdk": "workspace:*",
+        "@openai-oauth/core": "workspace:*",
+        "@openai-oauth/react": "workspace:*",
+        "ai": "6.0.116",
+        "next": "16.2.10",
+        "react": "^19.2.3",
+        "react-dom": "^19.2.3",
+        "zod": "^3.25.76",
+      },
+      "devDependencies": {
+        "@types/node": "20.17.24",
+        "@types/react": "^19.2.7",
+        "@types/react-dom": "^19.2.3",
+        "typescript": "5.9.2",
+      },
+    },
     "apps/chrome-extension": {
       "name": "@openai-oauth/chrome-extension",
       "version": "2.0.0-beta.1",
@@ -547,6 +569,8 @@
     "addons-scanner-utils": ["addons-scanner-utils@15.4.0", "", { "dependencies": { "common-tags": "1.8.2", "first-chunk-stream": "3.0.0", "jsonwebtoken": "^9.0.3", "strip-bom-stream": "4.0.0", "upath": "3.0.7", "yauzl": "3.4.0" }, "peerDependencies": { "express": "5.2.1", "safe-compare": "1.1.4" }, "optionalPeers": ["express", "safe-compare"] }, "sha512-i3PnJx9YLZi96o4t4JWArP6JimC01949YVAcMJKHfyQ5qmUBaH21qNS8f12/RsloejW8IcCEljhh3Fq3gxFNsg=="],
 
     "adm-zip": ["adm-zip@0.5.18", "", {}, "sha512-ufJnssQGbxzLNS1Ho9bCtX4rQKCCvoVuDLHoJyc3F9dOGDB4BkWs2Ci0kv53lqocAEQ/Cbi+I2XCsNYGqVYqng=="],
+
+    "agent": ["agent@workspace:apps/agent"],
 
     "agent-base": ["agent-base@7.1.4", "", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 
