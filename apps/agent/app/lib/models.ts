@@ -13,6 +13,9 @@ export type AgentModel = {
 	supportedInApi: boolean
 	reasoning: boolean
 	defaultReasoningEffort?: string
+	/** Effort levels this model actually accepts, straight from the catalog. */
+	reasoningLevels: string[]
+	defaultReasoningSummary?: string
 	supportsVerbosity: boolean
 	plans: string[]
 	visibility?: string
@@ -148,6 +151,19 @@ const toAgentModel = (raw: Record<string, unknown>): AgentModel | null => {
 		!supportedInApi ||
 		/experimental|preview|alpha|beta|internal|canary/i.test(id)
 
+	// The catalog lists levels either as plain strings or as {effort, description}.
+	const reasoningLevels = Array.isArray(raw.supported_reasoning_levels)
+		? raw.supported_reasoning_levels
+				.map((level) =>
+					typeof level === "string"
+						? level
+						: isRecord(level) && typeof level.effort === "string"
+							? level.effort
+							: undefined,
+				)
+				.filter((level): level is string => level !== undefined)
+		: []
+
 	const model: AgentModel = {
 		id,
 		label: prettyModelLabel(id),
@@ -159,6 +175,11 @@ const toAgentModel = (raw: Record<string, unknown>): AgentModel | null => {
 		defaultReasoningEffort:
 			typeof raw.default_reasoning_level === "string"
 				? raw.default_reasoning_level
+				: undefined,
+		reasoningLevels,
+		defaultReasoningSummary:
+			typeof raw.default_reasoning_summary === "string"
+				? raw.default_reasoning_summary
 				: undefined,
 		supportsVerbosity: raw.support_verbosity === true,
 		plans: Array.isArray(raw.available_in_plans)
@@ -275,4 +296,57 @@ export const pickDefaultModel = (models: AgentModel[]): string | undefined => {
 		}
 	}
 	return models.find((model) => !model.experimental)?.id ?? models[0]?.id
+}
+
+
+type CachedCatalog = { catalog: ModelCatalog; expiresAt: number }
+const CATALOG_TTL_MS = 5 * 60 * 1000
+let cachedCatalog: CachedCatalog | undefined
+
+/** The catalog, cached briefly, for callers that only need capability flags. */
+export const loadCatalogCached = async (
+	transport: OpenAIOAuthTransport,
+): Promise<ModelCatalog | undefined> => {
+	if (cachedCatalog && Date.now() < cachedCatalog.expiresAt) {
+		return cachedCatalog.catalog
+	}
+	try {
+		const catalog = await fetchModelCatalog(transport)
+		cachedCatalog = { catalog, expiresAt: Date.now() + CATALOG_TTL_MS }
+		return catalog
+	} catch {
+		return cachedCatalog?.catalog
+	}
+}
+
+/**
+ * Builds provider options a model will actually accept. Sending an effort it
+ * does not advertise, or a reasoning summary when its default is "none", makes
+ * the upstream reject the whole request.
+ */
+export const providerOptionsFor = (
+	model: AgentModel | undefined,
+	requestedEffort: string | undefined,
+	requestedVerbosity: string | undefined,
+): { openai: Record<string, string> } | undefined => {
+	const options: Record<string, string> = {}
+
+	if (requestedEffort && model && model.reasoningLevels.includes(requestedEffort)) {
+		options.reasoningEffort = requestedEffort
+	} else if (requestedEffort && model && model.reasoningLevels.length === 0) {
+		// No advertised list: trust the catalog default instead of guessing.
+		if (model.defaultReasoningEffort === requestedEffort) {
+			options.reasoningEffort = requestedEffort
+		}
+	}
+
+	if (model?.defaultReasoningSummary && model.defaultReasoningSummary !== "none") {
+		options.reasoningSummary = model.defaultReasoningSummary
+	}
+
+	if (requestedVerbosity && model?.supportsVerbosity) {
+		options.textVerbosity = requestedVerbosity
+	}
+
+	return Object.keys(options).length > 0 ? { openai: options } : undefined
 }

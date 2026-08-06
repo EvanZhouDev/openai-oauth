@@ -1,0 +1,18 @@
+# Makes the Run button start the agent app rather than every app in the repo.
+# The build step is required: the app imports the workspace packages from their
+# built dist/ output.
+run = "npm install && npm run build && npm run dev --prefix apps/agent"
+modules = ["nodejs-20"]
+
+[env]
+PORT = "3001"
+
+# Replit serves the app from its own https domain on port 80.
+[[ports]]
+localPort = 3001
+externalPort = 80
+
+[deployment]
+build = ["sh", "-c", "npm install && npm run build && npm run build --prefix apps/agent"]
+run = ["sh", "-c", "npm run start --prefix apps/agent"]
+deploymentTarget = "cloudrun"

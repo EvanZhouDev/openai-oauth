@@ -17,6 +17,9 @@ bun run --cwd apps/agent dev # http://localhost:3001
 The dev and start scripts bind `0.0.0.0` and honour `$PORT`, so Replit,
 Codespaces and similar hosts can reach the app.
 
+On Replit, the Run button is preconfigured (`.replit` at the repo root) to
+install, build and start this app on the port Replit assigns.
+
 **On a hosted URL, sign-in needs the browser extension.** ChatGPT's OAuth
 handoff only completes locally on its own; anywhere else it goes through the
 open-source [Sign in with ChatGPT extension](https://chromewebstore.google.com/detail/sign-in-with-chatgpt/odbgboachaefbbbdiffcefhpkekhfcna).

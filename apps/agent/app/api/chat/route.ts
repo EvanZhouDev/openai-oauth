@@ -6,7 +6,16 @@ import {
 	streamText,
 	type UIMessage,
 } from "ai"
-import { errorMessage, providerCredentials } from "../../lib/openai"
+import {
+	loadCatalogCached,
+	pickDefaultModel,
+	providerOptionsFor,
+} from "../../lib/models"
+import {
+	errorMessage,
+	providerCredentials,
+	transportFromRequest,
+} from "../../lib/openai"
 import { buildSystemPrompt } from "../../lib/prompt"
 import { createAgentTools } from "../../lib/tools"
 import { workspaceOutline } from "../../lib/workspace"
@@ -23,7 +32,6 @@ type ChatRequestBody = {
 	roleId?: string
 	customInstructions?: string
 	reasoningEffort?: string
-	supportsReasoning?: boolean
 	verbosity?: "low" | "medium" | "high"
 }
 
@@ -36,10 +44,9 @@ export async function POST(request: Request) {
 	}
 
 	const sessionId = body.sessionId?.trim()
-	const modelId = body.model?.trim()
-	if (!sessionId || !modelId || !Array.isArray(body.messages)) {
+	if (!sessionId || !Array.isArray(body.messages)) {
 		return Response.json(
-			{ error: "`sessionId`, `model` and `messages` are required." },
+			{ error: "`sessionId` and `messages` are required." },
 			{ status: 400 },
 		)
 	}
@@ -51,6 +58,30 @@ export async function POST(request: Request) {
 		return Response.json({ error: errorMessage(error) }, { status: 401 })
 	}
 
+	// The catalog tells us which options this model accepts. If the client never
+	// managed to load it, the server resolves a model itself rather than failing.
+	const catalog = await loadCatalogCached(transportFromRequest(request))
+	const modelId =
+		body.model?.trim() ||
+		(catalog ? pickDefaultModel(catalog.models) : undefined)
+
+	if (!modelId) {
+		return Response.json(
+			{
+				error:
+					"No model available yet. The model list could not be loaded from your ChatGPT account — reload the page, and check that the account is signed in.",
+			},
+			{ status: 503 },
+		)
+	}
+
+	const modelInfo = catalog?.models.find((model) => model.id === modelId)
+	const providerOptions = providerOptionsFor(
+		modelInfo,
+		body.reasoningEffort,
+		body.verbosity,
+	)
+
 	const outline = await workspaceOutline(sessionId).catch(() => "(empty)")
 	const system = buildSystemPrompt({
 		roleId: body.roleId,
@@ -59,19 +90,6 @@ export async function POST(request: Request) {
 		sessionId,
 		modelId,
 	})
-
-	const providerOptions =
-		body.supportsReasoning === false
-			? undefined
-			: {
-					openai: {
-						...(body.reasoningEffort
-							? { reasoningEffort: body.reasoningEffort }
-							: {}),
-						reasoningSummary: "auto",
-						...(body.verbosity ? { textVerbosity: body.verbosity } : {}),
-					},
-				}
 
 	const result = streamText({
 		model: openai(modelId),
@@ -87,7 +105,7 @@ export async function POST(request: Request) {
 		providerOptions,
 		experimental_transform: smoothStream({ delayInMs: 12, chunking: "word" }),
 		onError: ({ error }) => {
-			console.error("[agent] stream error:", errorMessage(error))
+			console.error(`[agent] stream error (${modelId}):`, errorMessage(error))
 		},
 	})
 
@@ -100,5 +118,11 @@ export async function POST(request: Request) {
 			part.type === "finish" && part.finishReason === "tool-calls"
 				? { stoppedAtStepLimit: STEP_LIMIT }
 				: undefined,
+		headers: {
+			// Hosted proxies (Replit, nginx) buffer streams unless told not to,
+			// which makes a working answer look like it hung.
+			"cache-control": "no-cache, no-transform",
+			"x-accel-buffering": "no",
+		},
 	})
 }

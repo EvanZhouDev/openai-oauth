@@ -5,17 +5,26 @@ import { ROLES } from "../lib/roles"
 import type { ReasoningEffort, Settings } from "../lib/types"
 import { CloseIcon, MoonIcon, SunIcon } from "./icons"
 
-const EFFORTS: ReasoningEffort[] = ["none", "minimal", "low", "medium", "high"]
+const FALLBACK_EFFORTS = ["low", "medium", "high"]
 
 export function SettingsDialog({
 	settings,
+	modelLevels,
+	modelLabel,
 	onClose,
 	onSave,
 }: {
 	settings: Settings
+	/** Effort levels the selected model advertises; anything else is rejected. */
+	modelLevels?: string[]
+	modelLabel?: string
 	onClose: () => void
 	onSave: (settings: Settings) => void
 }) {
+	const efforts = [
+		"off",
+		...(modelLevels && modelLevels.length > 0 ? modelLevels : FALLBACK_EFFORTS),
+	]
 	const [draft, setDraft] = useState<Settings>(settings)
 
 	useEffect(() => {
@@ -106,12 +115,15 @@ export function SettingsDialog({
 					<div className="field">
 						<span className="fieldLabel">Reasoning effort</span>
 						<div className="segmented">
-							{EFFORTS.map((effort) => (
+							{efforts.map((effort) => (
 								<button
 									className={draft.reasoningEffort === effort ? "selected" : ""}
 									key={effort}
 									onClick={() =>
-										setDraft({ ...draft, reasoningEffort: effort })
+										setDraft({
+											...draft,
+											reasoningEffort: effort as ReasoningEffort,
+										})
 									}
 									type="button"
 								>
@@ -120,8 +132,11 @@ export function SettingsDialog({
 							))}
 						</div>
 						<p className="fieldHint">
-							Higher effort thinks longer before acting. Models that do not
-							support reasoning ignore this.
+							Higher effort thinks longer before acting.{" "}
+							{modelLabel
+								? `These are the levels ${modelLabel} accepts.`
+								: "These levels come from the selected model."}{" "}
+							"off" leaves the choice to the model's own default.
 						</p>
 					</div>
 

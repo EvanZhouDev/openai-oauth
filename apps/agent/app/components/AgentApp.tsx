@@ -34,7 +34,7 @@ const MODEL_KEY = "agent.model.v1"
 const defaultSettings = (): Settings => ({
 	roleId: DEFAULT_ROLE_ID,
 	customInstructions: "",
-	reasoningEffort: "medium",
+	reasoningEffort: "off",
 	theme: "dark",
 	autoTitle: true,
 })
@@ -330,6 +330,8 @@ export function AgentApp() {
 
 			{settingsOpen ? (
 				<SettingsDialog
+					modelLabel={modelInfo?.label}
+					modelLevels={modelInfo?.reasoningLevels}
 					onClose={() => setSettingsOpen(false)}
 					onSave={(next) => {
 						setSettings(next)

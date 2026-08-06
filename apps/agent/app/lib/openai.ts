@@ -47,5 +47,51 @@ export const isAuthError = (error: unknown): boolean => {
 	)
 }
 
-export const errorMessage = (error: unknown): string =>
-	error instanceof Error ? error.message : String(error)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+	typeof value === "object" && value !== null
+
+/** Digs the upstream explanation out of an API error body when there is one. */
+const upstreamDetail = (body: string): string | undefined => {
+	try {
+		const parsed: unknown = JSON.parse(body)
+		if (isRecord(parsed)) {
+			if (isRecord(parsed.error) && typeof parsed.error.message === "string") {
+				return parsed.error.message
+			}
+			if (typeof parsed.detail === "string") {
+				return parsed.detail
+			}
+			if (typeof parsed.message === "string") {
+				return parsed.message
+			}
+		}
+	} catch {}
+	return body.trim().length > 0 ? body.slice(0, 400) : undefined
+}
+
+/**
+ * A message worth showing a user. API errors carry the reason in the response
+ * body, which is the difference between "an error occurred" and knowing that a
+ * parameter was rejected.
+ */
+export const errorMessage = (error: unknown): string => {
+	if (!(error instanceof Error)) {
+		return String(error)
+	}
+
+	const candidate = error as Error & {
+		responseBody?: unknown
+		statusCode?: unknown
+	}
+	const detail =
+		typeof candidate.responseBody === "string"
+			? upstreamDetail(candidate.responseBody)
+			: undefined
+
+	if (detail && !error.message.includes(detail)) {
+		const status =
+			typeof candidate.statusCode === "number" ? ` (${candidate.statusCode})` : ""
+		return `${error.message}${status}: ${detail}`
+	}
+	return error.message
+}

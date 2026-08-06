@@ -30,7 +30,6 @@ export async function POST(request: Request) {
 				.filter(Boolean)
 				.join("\n\n---\n\n")
 				.slice(0, 2000),
-			providerOptions: { openai: { reasoningEffort: "none" } },
 		})
 
 		const title = text

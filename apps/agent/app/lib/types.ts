@@ -24,7 +24,8 @@ export type Attachment = {
 	error?: string
 }
 
-export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high"
+/** "off" means: send nothing and let the model use its own default. */
+export type ReasoningEffort = string
 
 export type Settings = {
 	roleId: string
