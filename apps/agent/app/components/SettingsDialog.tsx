@@ -34,7 +34,7 @@ export function SettingsDialog({
 		<div className="overlay">
 			<button
 				aria-label="Close settings"
-				className="scrim"
+				className="dialogScrim"
 				onClick={onClose}
 				type="button"
 			/>

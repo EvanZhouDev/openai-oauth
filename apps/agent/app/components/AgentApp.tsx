@@ -265,7 +265,7 @@ export function AgentApp() {
 						type="button"
 					>
 						<SettingsIcon className="icon sm" />
-						<span>{roleName}</span>
+						<span className="pillLabel">{roleName}</span>
 					</button>
 					<button
 						aria-label="Download this chat as Markdown"

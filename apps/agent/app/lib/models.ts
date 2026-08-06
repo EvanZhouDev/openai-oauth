@@ -70,22 +70,43 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const titleCase = (value: string): string =>
 	value.charAt(0).toUpperCase() + value.slice(1)
 
-export const prettyModelLabel = (slug: string): string =>
-	slug
-		.split(/[-_]/)
-		.map((part) => {
-			if (/^gpt/i.test(part)) {
-				return part.replace(/^gpt/i, "GPT")
+const ACRONYMS = new Set(["api", "hd", "sfx", "tts", "ui", "vl"])
+
+/**
+ * `gpt-5.4-codex` reads as "GPT-5.4 Codex": the family keeps its hyphen to the
+ * version number, everything after it becomes a word.
+ */
+export const prettyModelLabel = (slug: string): string => {
+	const parts = slug.split(/[-_]/).filter((part) => part.length > 0)
+	const words: string[] = []
+
+	for (let index = 0; index < parts.length; index += 1) {
+		const part = parts[index] as string
+
+		if (/^gpt$/i.test(part)) {
+			const version = parts[index + 1]
+			if (version && /^\d[\d.]*$/.test(version)) {
+				words.push(`GPT-${version}`)
+				index += 1
+				continue
 			}
-			if (/^o\d/i.test(part) || /^\d/.test(part)) {
-				return part
-			}
-			if (part.length <= 3 && /^[a-z]+$/.test(part)) {
-				return part.toUpperCase()
-			}
-			return titleCase(part)
-		})
-		.join(" ")
+			words.push("GPT")
+			continue
+		}
+
+		if (/^o\d/i.test(part) || /^\d/.test(part)) {
+			words.push(part)
+			continue
+		}
+		if (ACRONYMS.has(part.toLowerCase())) {
+			words.push(part.toUpperCase())
+			continue
+		}
+		words.push(titleCase(part))
+	}
+
+	return words.join(" ")
+}
 
 const describeModel = (model: AgentModel): string => {
 	const traits: string[] = []

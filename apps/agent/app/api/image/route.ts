@@ -1,7 +1,10 @@
 import { createOpenAIOAuth } from "@openai-oauth/ai-sdk"
-import { openaiCredentials } from "@openai-oauth/react/server"
 import { generateImage } from "ai"
-import { errorMessage, isAuthError } from "../../lib/openai"
+import {
+	errorMessage,
+	isAuthError,
+	providerCredentials,
+} from "../../lib/openai"
 import { IMAGE_MODEL } from "../../lib/tools"
 import { writeWorkspaceFile } from "../../lib/workspace"
 
@@ -32,7 +35,7 @@ export async function POST(request: Request) {
 	}
 
 	try {
-		const openai = createOpenAIOAuth(openaiCredentials(request))
+		const openai = createOpenAIOAuth(providerCredentials(request))
 		const result = await generateImage({
 			model: openai.image(IMAGE_MODEL),
 			prompt,

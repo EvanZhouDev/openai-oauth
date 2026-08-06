@@ -410,6 +410,29 @@ export function ChatView({
 											return null
 										})}
 
+										{(message.metadata as { stoppedAtStepLimit?: number })
+											?.stoppedAtStepLimit && !busy ? (
+											<div className="errorBanner">
+												<WarningIcon className="icon sm" />
+												<span>
+													Stopped after{" "}
+													{
+														(message.metadata as { stoppedAtStepLimit: number })
+															.stoppedAtStepLimit
+													}{" "}
+													tool steps without finishing.{" "}
+													<button
+														onClick={() =>
+															void sendMessage({ text: "Keep going." })
+														}
+														type="button"
+													>
+														Continue
+													</button>
+												</span>
+											</div>
+										) : null}
+
 										{busy && message.id === lastAssistantId ? (
 											<div className="reasoningHead">
 												<SpinnerIcon className="icon xs spin" />

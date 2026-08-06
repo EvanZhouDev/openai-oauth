@@ -443,6 +443,8 @@ a {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
+	flex: none;
+	white-space: nowrap;
 	height: 34px;
 	padding: 0 12px;
 	border-radius: 999px;
@@ -1435,7 +1437,18 @@ a {
 	}
 }
 
+.dialogScrim {
+	position: absolute;
+	inset: 0;
+	background: none;
+	border: none;
+	z-index: 0;
+}
+
 .dialog {
+	/* Must sit above the click-outside scrim that shares this stacking context. */
+	position: relative;
+	z-index: 1;
 	width: min(640px, 100%);
 	max-height: min(86vh, 760px);
 	background: var(--bg-elevated);
@@ -1737,11 +1750,31 @@ a {
 		max-width: 88%;
 	}
 
+	.topBar {
+		gap: 2px;
+		padding: 8px 6px;
+	}
+
 	.modelButton {
 		font-size: 16px;
-		max-width: 46vw;
+		max-width: 38vw;
 		overflow: hidden;
 		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	/* The role name would push the header past the viewport; the gear is enough. */
+	.pill .pillLabel {
+		display: none;
+	}
+
+	.pill {
+		padding: 0 9px;
+	}
+
+	.iconButton {
+		width: 32px;
+		height: 32px;
 	}
 
 	.emptyState h1 {

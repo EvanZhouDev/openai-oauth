@@ -1,7 +1,6 @@
 import { createOpenAIOAuth } from "@openai-oauth/ai-sdk"
-import { openaiCredentials } from "@openai-oauth/react/server"
 import { generateText } from "ai"
-import { errorMessage } from "../../lib/openai"
+import { errorMessage, providerCredentials } from "../../lib/openai"
 import { TITLE_PROMPT } from "../../lib/prompt"
 
 export const maxDuration = 60
@@ -23,7 +22,7 @@ export async function POST(request: Request) {
 	}
 
 	try {
-		const openai = createOpenAIOAuth(openaiCredentials(request))
+		const openai = createOpenAIOAuth(providerCredentials(request))
 		const { text } = await generateText({
 			model: openai(body.model),
 			system: TITLE_PROMPT,

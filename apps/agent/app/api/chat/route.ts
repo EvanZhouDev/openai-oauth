@@ -1,5 +1,4 @@
 import { createOpenAIOAuth } from "@openai-oauth/ai-sdk"
-import { openaiCredentials } from "@openai-oauth/react/server"
 import {
 	convertToModelMessages,
 	smoothStream,
@@ -7,12 +6,15 @@ import {
 	streamText,
 	type UIMessage,
 } from "ai"
-import { errorMessage } from "../../lib/openai"
+import { errorMessage, providerCredentials } from "../../lib/openai"
 import { buildSystemPrompt } from "../../lib/prompt"
 import { createAgentTools } from "../../lib/tools"
 import { workspaceOutline } from "../../lib/workspace"
 
 export const maxDuration = 300
+
+// How many tool round trips one turn may take before the agent is cut off.
+const STEP_LIMIT = 32
 
 type ChatRequestBody = {
 	messages?: UIMessage[]
@@ -44,7 +46,7 @@ export async function POST(request: Request) {
 
 	let openai: ReturnType<typeof createOpenAIOAuth>
 	try {
-		openai = createOpenAIOAuth(openaiCredentials(request))
+		openai = createOpenAIOAuth(providerCredentials(request))
 	} catch (error) {
 		return Response.json({ error: errorMessage(error) }, { status: 401 })
 	}
@@ -80,7 +82,7 @@ export async function POST(request: Request) {
 			provider: openai,
 			signal: request.signal,
 		}),
-		stopWhen: stepCountIs(32),
+		stopWhen: stepCountIs(STEP_LIMIT),
 		abortSignal: request.signal,
 		providerOptions,
 		experimental_transform: smoothStream({ delayInMs: 12, chunking: "word" }),
@@ -92,5 +94,11 @@ export async function POST(request: Request) {
 	return result.toUIMessageStreamResponse({
 		sendReasoning: true,
 		onError: (error) => errorMessage(error),
+		// Tells the client when a turn ended because it ran out of steps rather
+		// than because the agent was finished.
+		messageMetadata: ({ part }) =>
+			part.type === "finish" && part.finishReason === "tool-calls"
+				? { stoppedAtStepLimit: STEP_LIMIT }
+				: undefined,
 	})
 }

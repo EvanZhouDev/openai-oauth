@@ -37,6 +37,7 @@ All optional.
 | --- | --- |
 | `AGENT_WORKSPACE_ROOT` | Where sandbox directories live. Default `.agent-workspace` in the app's working directory. |
 | `AGENT_SANDBOX_COMMAND` | The launcher for `run_command`, default `bash -lc`. Point it at a container or jail to harden the terminal, e.g. `firejail --quiet bash -lc`. |
+| `CODEX_BASE_URL` | Points the provider at a different Codex-compatible upstream — a local proxy, or a stub when testing. Defaults to the real endpoint. |
 | `CODEX_CLIENT_VERSION` | Pin the Codex client version used when asking for the model catalog. Defaults to the latest published `@openai/codex`. |
 | `BRAVE_SEARCH_API_KEY` / `TAVILY_API_KEY` / `SEARXNG_URL` | Use a real search API instead of scraping DuckDuckGo. First one set wins. |
 
