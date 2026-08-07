@@ -2,8 +2,9 @@ import { spawn } from "node:child_process"
 import path from "node:path"
 import { resolveInWorkspace, sessionRoot } from "./workspace"
 
-const DEFAULT_TIMEOUT_MS = 60_000
-const MAX_TIMEOUT_MS = 300_000
+const DEFAULT_TIMEOUT_MS = 120_000
+// Cloning a large repo or installing a dependency tree needs real time.
+const MAX_TIMEOUT_MS = 900_000
 const MAX_OUTPUT_CHARS = 20_000
 
 export type TerminalResult = {
@@ -41,11 +42,36 @@ const BLOCKED_PATTERNS: Array<{ pattern: RegExp; reason: string }> = [
 	{ pattern: /:\(\)\s*\{\s*:\|:&\s*\};:/, reason: "is a fork bomb" },
 	{ pattern: /\bsudo\b|\bsu\s+-/, reason: "escalates privileges" },
 	{
-		pattern: /(^|[\s;&|])(>|>>)\s*\/(etc|usr|bin|sbin|boot|dev|proc|sys)\//,
+		// /dev/null and friends are ordinary shell plumbing, so they stay allowed.
+		pattern: /(^|[\s;&|])(>|>>)\s*\/(etc|usr|bin|sbin|boot|proc|sys)\//,
 		reason: "writes to a system directory",
 	},
 	{ pattern: /\bchmod\s+-R\s+777\s+\//, reason: "changes host permissions" },
 ]
+
+/**
+ * Passed through so the sandbox inherits the host's connectivity: proxies, the
+ * certificate bundle behind them, and the package-manager mirrors that go with
+ * them. Nothing here carries credentials for the app's own account.
+ */
+const NETWORK_ENV_KEYS = [
+	"ALL_PROXY",
+	"all_proxy",
+	"CURL_CA_BUNDLE",
+	"GIT_SSL_CAINFO",
+	"HTTP_PROXY",
+	"http_proxy",
+	"HTTPS_PROXY",
+	"https_proxy",
+	"NO_PROXY",
+	"no_proxy",
+	"NODE_EXTRA_CA_CERTS",
+	"REQUESTS_CA_BUNDLE",
+	"SSL_CERT_DIR",
+	"SSL_CERT_FILE",
+	"npm_config_registry",
+	"COREPACK_ENABLE_DOWNLOAD_PROMPT",
+] as const
 
 const truncate = (value: string): { text: string; truncated: boolean } =>
 	value.length > MAX_OUTPUT_CHARS
@@ -100,6 +126,25 @@ export const runCommand = async ({
 		PWD: absolute,
 		CI: "1",
 		NO_COLOR: "1",
+		// Never sit waiting for credentials that nobody can type.
+		GIT_TERMINAL_PROMPT: "0",
+		GIT_ASKPASS: "",
+		GCM_INTERACTIVE: "never",
+		DEBIAN_FRONTEND: "noninteractive",
+		PIP_DISABLE_PIP_VERSION_CHECK: "1",
+		npm_config_audit: "false",
+		npm_config_fund: "false",
+		npm_config_progress: "false",
+		npm_config_yes: "true",
+	}
+
+	// Proxy and certificate settings decide whether the sandbox has internet at
+	// all. Copy whichever the host has set.
+	for (const key of NETWORK_ENV_KEYS) {
+		const value = process.env[key]
+		if (typeof value === "string" && value.length > 0) {
+			env[key] = value
+		}
 	}
 
 	// `AGENT_SANDBOX_COMMAND` swaps the shell for a container or jail wrapper,

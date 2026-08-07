@@ -1,7 +1,7 @@
 # Makes the Run button start the agent app rather than every app in the repo.
 # The build step is required: the app imports the workspace packages from their
 # built dist/ output.
-run = "npm install && npm run build && npm run dev --prefix apps/agent"
+run = "bash scripts/replit-run.sh"
 modules = ["nodejs-20"]
 
 [env]

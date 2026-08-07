@@ -8,6 +8,7 @@ import {
 	CircleCheckIcon,
 	CircleDotIcon,
 	CircleIcon,
+	DownloadIcon,
 	FileEditIcon,
 	FileIcon,
 	FilePlusIcon,
@@ -54,6 +55,7 @@ const TOOL_ICONS: Record<
 	edit_file: FileEditIcon,
 	delete_path: TrashIcon,
 	run_command: TerminalIcon,
+	clone_repo: DownloadIcon,
 	web_search: GlobeIcon,
 	fetch_url: GlobeIcon,
 	generate_image: ImageIcon,
@@ -67,6 +69,7 @@ const TOOL_LABELS: Record<string, { running: string; done: string }> = {
 	edit_file: { running: "Editing", done: "Edited" },
 	delete_path: { running: "Deleting", done: "Deleted" },
 	run_command: { running: "Running command", done: "Ran command" },
+	clone_repo: { running: "Cloning", done: "Cloned" },
 	web_search: { running: "Searching the web", done: "Searched the web" },
 	fetch_url: { running: "Reading page", done: "Read page" },
 	generate_image: { running: "Generating image", done: "Generated image" },
@@ -79,6 +82,8 @@ const toolSubject = (name: string, input: unknown): string | undefined => {
 	switch (name) {
 		case "run_command":
 			return asString(input.command)
+		case "clone_repo":
+			return asString(input.url)
 		case "web_search":
 			return asString(input.query)
 		case "fetch_url":
@@ -109,6 +114,10 @@ const toolMeta = (name: string, output: unknown): string | undefined => {
 				parts.push(`${(duration / 1000).toFixed(1)}s`)
 			}
 			return parts.join(" · ")
+		}
+		case "clone_repo": {
+			const files = asNumber(output.files)
+			return files === undefined ? undefined : `${files} files`
 		}
 		case "write_file": {
 			const lines = asNumber(output.lines)

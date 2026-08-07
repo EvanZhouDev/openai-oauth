@@ -1,6 +1,7 @@
 import { createOpenAIOAuth } from "@openai-oauth/ai-sdk"
 import {
 	convertToModelMessages,
+	type ModelMessage,
 	smoothStream,
 	stepCountIs,
 	streamText,
@@ -24,6 +25,23 @@ export const maxDuration = 300
 
 // How many tool round trips one turn may take before the agent is cut off.
 const STEP_LIMIT = 32
+
+/**
+ * Codex runs with `store: false`, so nothing the model produced is kept
+ * server-side. Replaying a reasoning item by its id therefore fails with
+ * "Item with id 'rs_…' not found". Reasoning is still streamed to the browser
+ * for display; it just never goes back upstream.
+ */
+const withoutReasoning = (messages: ModelMessage[]): ModelMessage[] =>
+	messages.map((message) => {
+		if (message.role !== "assistant" || !Array.isArray(message.content)) {
+			return message
+		}
+		const content = message.content.filter((part) => part.type !== "reasoning")
+		return content.length === message.content.length
+			? message
+			: ({ ...message, content } as ModelMessage)
+	})
 
 type ChatRequestBody = {
 	messages?: UIMessage[]
@@ -94,13 +112,16 @@ export async function POST(request: Request) {
 	const result = streamText({
 		model: openai(modelId),
 		system,
-		messages: await convertToModelMessages(body.messages),
+		messages: withoutReasoning(await convertToModelMessages(body.messages)),
 		tools: createAgentTools({
 			sessionId,
 			provider: openai,
 			signal: request.signal,
 		}),
 		stopWhen: stepCountIs(STEP_LIMIT),
+		// Later steps in the same turn carry the earlier steps' reasoning, which
+		// hits the same stateless-replay error, so strip it there too.
+		prepareStep: ({ messages }) => ({ messages: withoutReasoning(messages) }),
 		abortSignal: request.signal,
 		providerOptions,
 		experimental_transform: smoothStream({ delayInMs: 12, chunking: "word" }),

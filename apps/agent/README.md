@@ -33,7 +33,9 @@ running locally needs no extension at all.
 | **Every model on your account** | `GET /api/models` reads the live Codex catalog on each page load, skipping the filter that normally keeps non-public entries out. Models the catalog marks `visibility: "hide"` appear under *Hidden & unlisted* — in practice that is often a superseded model rather than an upcoming one. Nothing is hard coded, so whatever OpenAI serves your account and client version is what you get. |
 | **Plans without being asked** | The agent calls `update_plan` before multi-step work; the plan renders as a live checklist that ticks itself off. |
 | **Writes real files** | `write_file`, `edit_file`, `read_file`, `list_files`, `delete_path`, all confined to the conversation's workspace directory. |
-| **Sandbox terminal** | `run_command` runs shell commands in that directory with a timeout and captured output. This is how it tests the code it writes. |
+| **Sandbox terminal, with internet** | `run_command` runs shell commands in that directory with a timeout and captured output. The sandbox inherits the host's network settings, so `git clone`, `npm install` and `pip install` all work. This is how it tests the code it writes. |
+| **Clones and runs repositories** | `clone_repo` pulls a public repo into the workspace; the agent then reads, runs and edits it in place. |
+| **Fixes its own failures** | A non-zero exit comes back flagged as work to do, and the prompt tells the agent to diagnose and re-run until it passes rather than reporting the error. |
 | **Web search** | `web_search` and `fetch_url` — DuckDuckGo by default, no key needed. |
 | **Images** | Generate with the composer's image button or the `generate_image` tool; images are saved into the workspace. |
 | **Uploads** | Drop or paste files and images. They are saved into the workspace so the agent can open them, and images are also sent to the model for vision. |

@@ -103,6 +103,16 @@ export function ModelPicker({
 
 			{open ? (
 				<div className="menu" role="menu">
+					{models.warning ? (
+						<div
+							className="menuFooter"
+							style={{ color: "var(--danger)", paddingTop: 10 }}
+						>
+							<WarningIcon className="icon sm" />
+							<span>{models.warning}</span>
+						</div>
+					) : null}
+
 					{models.error ? (
 						<div className="errorBanner" style={{ margin: 6 }}>
 							<WarningIcon className="icon sm" />
@@ -150,6 +160,7 @@ export function ModelPicker({
 						{models.models.length} models
 						{models.clientVersion ? ` · codex ${models.clientVersion}` : ""}
 						{models.source === "openai-compatible" ? " · public list only" : ""}
+						{models.source === "fallback" ? " · offline list" : ""}
 					</div>
 				</div>
 			) : null}

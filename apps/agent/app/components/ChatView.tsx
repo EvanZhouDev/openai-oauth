@@ -10,6 +10,7 @@ import { Composer } from "./Composer"
 import {
 	BrainIcon,
 	CheckIcon,
+	ChevronDownIcon,
 	CodeIcon,
 	CopyIcon,
 	GlobeIcon,
@@ -49,6 +50,37 @@ const SUGGESTIONS = [
 			"Generate a clean, minimal logo for a developer tool called Sandbox.",
 	},
 ]
+
+/** The model's thinking, collapsed by default and openable like ChatGPT's. */
+function Thinking({ text, live }: { text: string; live: boolean }) {
+	const [open, setOpen] = useState(false)
+	const words = text.trim().split(/\s+/).length
+
+	return (
+		<div className={`thinking ${open ? "open" : ""}`}>
+			<button
+				aria-expanded={open}
+				className="thinkingHeader"
+				onClick={() => setOpen((value) => !value)}
+				type="button"
+			>
+				<BrainIcon className="icon sm" />
+				<span className={live ? "shimmer" : undefined}>
+					{live ? "Thinking" : "Thought"}
+				</span>
+				<span className="thinkingMeta">
+					{words} word{words === 1 ? "" : "s"}
+				</span>
+				<ChevronDownIcon className={`icon sm chevron ${open ? "up" : ""}`} />
+			</button>
+			{open ? (
+				<div className="thinkingBody">
+					<Markdown content={text} />
+				</div>
+			) : null}
+		</div>
+	)
+}
 
 const messageText = (message: UIMessage): string =>
 	message.parts
@@ -377,13 +409,11 @@ export function ChatView({
 													return null
 												}
 												return (
-													<div className="reasoning" key={key}>
-														<div className="reasoningHead">
-															<BrainIcon className="icon xs" />
-															<span>Thinking</span>
-														</div>
-														<Markdown content={text} />
-													</div>
+													<Thinking
+														key={key}
+														live={busy && message.id === lastAssistantId}
+														text={text}
+													/>
 												)
 											}
 

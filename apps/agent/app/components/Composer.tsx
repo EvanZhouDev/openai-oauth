@@ -100,7 +100,8 @@ export function Composer({
 						method: "POST",
 						body: form,
 					})
-					const payload = (await response.json()) as {
+					const raw = await response.text()
+					const payload = (raw.trim().length > 0 ? JSON.parse(raw) : {}) as {
 						path?: string
 						mediaType?: string
 						bytes?: number

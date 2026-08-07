@@ -90,7 +90,9 @@ export const errorMessage = (error: unknown): string => {
 
 	if (detail && !error.message.includes(detail)) {
 		const status =
-			typeof candidate.statusCode === "number" ? ` (${candidate.statusCode})` : ""
+			typeof candidate.statusCode === "number"
+				? ` (${candidate.statusCode})`
+				: ""
 		return `${error.message}${status}: ${detail}`
 	}
 	return error.message

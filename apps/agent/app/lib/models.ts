@@ -24,7 +24,7 @@ export type AgentModel = {
 export type ModelCatalog = {
 	models: AgentModel[]
 	clientVersion: string
-	source: "codex-catalog" | "openai-compatible"
+	source: "codex-catalog" | "openai-compatible" | "fallback"
 	fetchedAt: number
 }
 
@@ -245,6 +245,10 @@ export const fetchModelCatalog = async (
 	const response = await transport.request("/models")
 	const body = await response.text()
 	if (!response.ok) {
+		// A reachable-but-unhappy endpoint should not leave the app unusable.
+		if (response.status >= 500 || response.status === 404) {
+			return fallbackCatalog(clientVersion)
+		}
 		throw new Error(
 			(() => {
 				try {
@@ -268,7 +272,7 @@ export const fetchModelCatalog = async (
 		.filter((model): model is AgentModel => model !== null)
 
 	if (models.length === 0) {
-		throw new Error("The account returned an empty model list.")
+		return fallbackCatalog(clientVersion)
 	}
 
 	return {
@@ -280,14 +284,101 @@ export const fetchModelCatalog = async (
 }
 
 export const DEFAULT_MODEL_PREFERENCE = [
+	"gpt-5.6-sol",
+	"gpt-5.6-terra",
+	"gpt-5.6-luna",
+	"gpt-5.5",
 	"gpt-5.4-codex",
-	"gpt-5.3-codex",
-	"gpt-5.2-codex",
-	"gpt-5.1-codex",
-	"gpt-5-codex",
 	"gpt-5.4",
 	"gpt-5.4-mini",
 ]
+
+/**
+ * Used only when the catalog cannot be reached, so the app still works instead
+ * of showing an empty picker. These slugs and their capabilities come from the
+ * model list shipped inside the Codex client itself.
+ */
+const FALLBACK_MODELS: Array<
+	Partial<Record<string, unknown>> & { slug: string }
+> = [
+	{
+		slug: "gpt-5.6-sol",
+		visibility: "list",
+		default_reasoning_level: "low",
+		default_reasoning_summary: "none",
+		support_verbosity: true,
+		supported_reasoning_levels: [
+			{ effort: "low" },
+			{ effort: "medium" },
+			{ effort: "high" },
+			{ effort: "xhigh" },
+			{ effort: "max" },
+			{ effort: "ultra" },
+		],
+	},
+	{
+		slug: "gpt-5.6-terra",
+		visibility: "list",
+		default_reasoning_level: "medium",
+		default_reasoning_summary: "none",
+		support_verbosity: true,
+		supported_reasoning_levels: [
+			{ effort: "low" },
+			{ effort: "medium" },
+			{ effort: "high" },
+			{ effort: "xhigh" },
+		],
+	},
+	{
+		slug: "gpt-5.6-luna",
+		visibility: "list",
+		default_reasoning_level: "medium",
+		default_reasoning_summary: "none",
+		support_verbosity: true,
+		supported_reasoning_levels: [
+			{ effort: "low" },
+			{ effort: "medium" },
+			{ effort: "high" },
+		],
+	},
+	{
+		slug: "gpt-5.5",
+		visibility: "list",
+		default_reasoning_level: "medium",
+		default_reasoning_summary: "none",
+		support_verbosity: true,
+		supported_reasoning_levels: [
+			{ effort: "low" },
+			{ effort: "medium" },
+			{ effort: "high" },
+		],
+	},
+	{
+		slug: "gpt-5.4",
+		visibility: "hide",
+		default_reasoning_level: "medium",
+		default_reasoning_summary: "none",
+		support_verbosity: true,
+	},
+	{
+		slug: "gpt-5.4-mini",
+		visibility: "hide",
+		default_reasoning_level: "low",
+		default_reasoning_summary: "none",
+		support_verbosity: true,
+	},
+]
+
+export const fallbackCatalog = (clientVersion: string): ModelCatalog => ({
+	models: sortModels(
+		FALLBACK_MODELS.map(toAgentModel).filter(
+			(model): model is AgentModel => model !== null,
+		),
+	),
+	clientVersion,
+	source: "fallback",
+	fetchedAt: Date.now(),
+})
 
 export const pickDefaultModel = (models: AgentModel[]): string | undefined => {
 	for (const preferred of DEFAULT_MODEL_PREFERENCE) {
@@ -297,7 +388,6 @@ export const pickDefaultModel = (models: AgentModel[]): string | undefined => {
 	}
 	return models.find((model) => !model.experimental)?.id ?? models[0]?.id
 }
-
 
 type CachedCatalog = { catalog: ModelCatalog; expiresAt: number }
 const CATALOG_TTL_MS = 5 * 60 * 1000
@@ -331,7 +421,11 @@ export const providerOptionsFor = (
 ): { openai: Record<string, string> } | undefined => {
 	const options: Record<string, string> = {}
 
-	if (requestedEffort && model && model.reasoningLevels.includes(requestedEffort)) {
+	if (
+		requestedEffort &&
+		model &&
+		model.reasoningLevels.includes(requestedEffort)
+	) {
 		options.reasoningEffort = requestedEffort
 	} else if (requestedEffort && model && model.reasoningLevels.length === 0) {
 		// No advertised list: trust the catalog default instead of guessing.
@@ -340,7 +434,10 @@ export const providerOptionsFor = (
 		}
 	}
 
-	if (model?.defaultReasoningSummary && model.defaultReasoningSummary !== "none") {
+	if (
+		model?.defaultReasoningSummary &&
+		model.defaultReasoningSummary !== "none"
+	) {
 		options.reasoningSummary = model.defaultReasoningSummary
 	}
 

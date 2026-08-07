@@ -27,6 +27,10 @@ const planStepSchema = z.object({
 		.describe("Where this step stands right now."),
 })
 
+/** Single-quote for the shell so URLs and branch names cannot inject. */
+const shellQuote = (value: string): string =>
+	`'${value.replace(/'/g, "'\\''")}'`
+
 const slugify = (value: string): string =>
 	value
 		.toLowerCase()
@@ -153,7 +157,7 @@ export const createAgentTools = ({
 
 	run_command: tool({
 		description:
-			"Run a shell command in the sandbox terminal, inside the workspace. Use it to execute code, run tests, install packages and inspect output.",
+			"Run a shell command in the sandbox terminal, inside the workspace. The sandbox has internet access: use it to execute code, run tests, clone repositories, and install packages (npm, pip, apt-free tools). Long installs need a larger timeout_ms.",
 		inputSchema: z.object({
 			command: z.string().describe("Shell command, e.g. `python3 main.py`."),
 			cwd: z
@@ -170,14 +174,89 @@ export const createAgentTools = ({
 					"Kill the command after this many milliseconds (default 60000).",
 				),
 		}),
-		execute: async ({ command, cwd, timeout_ms }) =>
-			await runCommand({
+		execute: async ({ command, cwd, timeout_ms }) => {
+			const result = await runCommand({
 				sessionId,
 				command,
 				cwd,
 				timeoutMs: timeout_ms,
 				signal,
-			}),
+			})
+			const failed = result.timedOut || result.exitCode !== 0
+			return {
+				...result,
+				failed,
+				// Spelled out so a failure reads as work to do, not a dead end.
+				hint: failed
+					? result.timedOut
+						? "The command hit its timeout. Re-run it with a larger timeout_ms, or run it in the background and poll."
+						: "Non-zero exit. Read stderr above, fix the cause, and run it again. Do not report success until it exits 0."
+					: undefined,
+			}
+		},
+	}),
+
+	clone_repo: tool({
+		description:
+			"Clone a public git repository into the sandbox workspace so its code can be read, run and modified.",
+		inputSchema: z.object({
+			url: z
+				.string()
+				.describe("Repository URL, e.g. https://github.com/owner/name."),
+			directory: z
+				.string()
+				.optional()
+				.describe(
+					"Target directory inside the workspace. Defaults to the repo name.",
+				),
+			depth: z
+				.number()
+				.int()
+				.min(0)
+				.optional()
+				.describe("History depth; 0 clones the full history. Defaults to 1."),
+			branch: z.string().optional(),
+		}),
+		execute: async ({ url, directory, depth, branch }) => {
+			if (!/^(https?:\/\/|git@)/.test(url)) {
+				throw new Error(
+					"Only http(s) and git@ repository URLs can be cloned into the sandbox.",
+				)
+			}
+
+			const target =
+				directory?.trim() ||
+				(url.split("/").pop() ?? "repo").replace(/\.git$/, "")
+			const depthFlag = depth === 0 ? "" : `--depth ${depth ?? 1}`
+			const branchFlag = branch ? `--branch ${shellQuote(branch)}` : ""
+			const result = await runCommand({
+				sessionId,
+				command: `git clone ${depthFlag} ${branchFlag} ${shellQuote(url)} ${shellQuote(target)}`,
+				timeoutMs: 600_000,
+				signal,
+			})
+
+			if (result.exitCode !== 0) {
+				throw new Error(
+					`Clone failed (exit ${result.exitCode}). ${result.stderr || result.stdout}`.trim(),
+				)
+			}
+
+			const entries = await listWorkspace(sessionId, target).catch(() => [])
+			return {
+				path: target,
+				url,
+				branch,
+				files: entries.length,
+				top: entries
+					.filter((entry) => !entry.path.slice(target.length + 1).includes("/"))
+					.slice(0, 40)
+					.map((entry) =>
+						entry.type === "directory" ? `${entry.path}/` : entry.path,
+					),
+				durationMs: result.durationMs,
+			}
+		},
 	}),
 
 	web_search: tool({

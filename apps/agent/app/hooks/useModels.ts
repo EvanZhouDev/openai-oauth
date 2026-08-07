@@ -10,6 +10,7 @@ type ModelsResponse = {
 	clientVersion?: string
 	source?: string
 	error?: string
+	warning?: string
 }
 
 export type ModelsState = {
@@ -19,6 +20,7 @@ export type ModelsState = {
 	source?: string
 	loading: boolean
 	error?: string
+	warning?: string
 	refresh: () => Promise<void>
 }
 
@@ -39,15 +41,31 @@ export const useModels = (enabled: boolean): ModelsState => {
 				headers: await openaiAuthHeaders(),
 				cache: "no-store",
 			})
-			const payload = (await response.json()) as ModelsResponse
-			if (!response.ok || !payload.models) {
-				throw new Error(payload.error ?? "Could not load the model list.")
+			// An empty or non-JSON body used to surface as "Unexpected end of JSON
+			// input", which told the user nothing about what actually failed.
+			const raw = await response.text()
+			let payload: ModelsResponse = {}
+			if (raw.trim().length > 0) {
+				try {
+					payload = JSON.parse(raw) as ModelsResponse
+				} catch {
+					throw new Error(
+						`The model list came back unreadable (HTTP ${response.status}). ${raw.slice(0, 160)}`,
+					)
+				}
+			}
+			if (!response.ok || !payload.models || payload.models.length === 0) {
+				throw new Error(
+					payload.error ??
+						`Could not load the model list (HTTP ${response.status}).`,
+				)
 			}
 			setState({
 				models: payload.models,
 				defaultModel: payload.defaultModel,
 				clientVersion: payload.clientVersion,
 				source: payload.source,
+				warning: payload.warning,
 				loading: false,
 			})
 		} catch (error) {
