@@ -590,6 +590,16 @@ What is intentionally not there yet:
 - There is no stateful replay support on the CLI `/v1/responses` endpoint. The proxy is stateless and expects callers to send the full conversation history.
 - Hosted browser sign-in currently supports Chrome and Firefox. Safari is not yet supported.
 
+## Example Apps
+
+The repo ships two runnable Next.js apps in `apps/`:
+
+- **`apps/demo`** — the landing page and minimal integration demo. `bun run --cwd apps/demo dev`
+- **`apps/agent`** — a full ChatGPT-style coding agent: model switching (including
+  experimental models), planning, file tools, a sandbox terminal, web search,
+  image generation, uploads and chat history. `bun run --cwd apps/agent dev`
+  → [read more](apps/agent/README.md)
+
 ## How it Works
 
 OpenAI's Codex CLI uses authenticated endpoints at `chatgpt.com/backend-api/codex` to run models with your ChatGPT account.
