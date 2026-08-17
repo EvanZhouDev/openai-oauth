@@ -153,6 +153,43 @@ For more information on each of the packages, refer to package-specific `README.
 
 See [Known Limitations](#known-limitations) for more information.
 
+### Playground
+
+Every feature above is testable end to end in a browser at
+[openai-oauth.vercel.app/playground](https://openai-oauth.vercel.app/playground).
+
+Sign in with your ChatGPT account and the playground gives you a full chat
+interface where you can switch endpoints, toggle streaming, change reasoning
+effort, and watch tool calls resolve. A wire inspector shows every request body
+and SSE frame exchanged, so you can confirm exactly what went over the network.
+
+| What it exercises | How |
+| --- | --- |
+| `/v1/models` | Populates the model picker with the models your ChatGPT plan can reach |
+| `/v1/responses` | Endpoint toggle, sending the full conversation on every turn |
+| `/v1/chat/completions` | Endpoint toggle, same conversation replayed in chat format |
+| Streaming responses | "Stream the response" toggle, on and off |
+| Toolcalls | Three sample tools run in your browser, with results fed back for the next round |
+| Reasoning traces | Reasoning effort selector plus a collapsible trace on each answer |
+
+The page is part of the demo app in `apps/demo`. Its `/api/v1/*` route is a
+small OpenAI-compatible gateway that reads request-bound credentials with
+`openaiCredentials(request)` — the same pattern any hosted app would use, since
+browsers cannot call the upstream API directly because of CORS.
+
+To run the playground locally:
+
+```bash
+bun install
+bun run --cwd apps/demo dev
+```
+
+Then open [http://localhost:3000/playground](http://localhost:3000/playground).
+Use the **Sign in with ChatGPT** CTA in the Account panel. The CTA detects the
+Chrome or Firefox extension, offers the correct install link when it is missing,
+and completes the OAuth callback in a popup without navigating away from the
+playground.
+
 ## `openai-oauth` CLI
 
 ```bash
