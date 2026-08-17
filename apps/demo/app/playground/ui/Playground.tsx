@@ -8,6 +8,11 @@ import {
 import Image from "next/image"
 import Link from "next/link"
 import { useCallback, useEffect, useRef, useState } from "react"
+import {
+	type ImageAttachment,
+	MAX_ATTACHMENTS,
+	readImageFiles,
+} from "../lib/images"
 import { endpointLabel, endpointPath, runConversation } from "../lib/run"
 import { playgroundTools } from "../lib/tools"
 import type {
@@ -17,13 +22,27 @@ import type {
 	ReasoningEffort,
 	RunEvent,
 } from "../lib/types"
+import { useImageGeneration } from "../lib/useImageGeneration"
+import {
+	ImageGenerationMain,
+	ImageOptionsSidebar,
+} from "./ImageGenerationPanel"
 import { Inspector } from "./Inspector"
-import { CheckIcon, GitHubIcon, SendIcon, StopIcon } from "./icons"
+import {
+	CheckIcon,
+	GitHubIcon,
+	ImageIcon,
+	SendIcon,
+	StopIcon,
+	XIcon,
+} from "./icons"
 import { Transcript } from "./Transcript"
 
 const MAX_INSPECTOR_ENTRIES = 400
 
 const reasoningEfforts: ReasoningEffort[] = ["minimal", "low", "medium", "high"]
+
+type Mode = "chat" | "image"
 
 type CoverageId =
 	| "models"
@@ -33,6 +52,9 @@ type CoverageId =
 	| "non-streaming"
 	| "tools"
 	| "reasoning"
+	| "vision"
+	| "images-generate"
+	| "images-edit"
 
 const coverageChecks: Array<{ id: CoverageId; label: string }> = [
 	{ id: "models", label: "GET /v1/models" },
@@ -42,6 +64,9 @@ const coverageChecks: Array<{ id: CoverageId; label: string }> = [
 	{ id: "non-streaming", label: "Non-streaming responses" },
 	{ id: "tools", label: "Tool calls" },
 	{ id: "reasoning", label: "Reasoning traces" },
+	{ id: "vision", label: "Image input" },
+	{ id: "images-generate", label: "POST /v1/images/generations" },
+	{ id: "images-edit", label: "POST /v1/images/edits" },
 ]
 
 const suggestions = [
@@ -180,7 +205,9 @@ export function Playground() {
 		session: null,
 		error: null,
 	})
+	const [mode, setMode] = useState<Mode>("chat")
 	const [models, setModels] = useState<string[]>([])
+	const [imageModels, setImageModels] = useState<string[]>([])
 	const [modelsError, setModelsError] = useState<string | null>(null)
 	const [model, setModel] = useState("")
 	const [endpoint, setEndpoint] = useState<EndpointId>("responses")
@@ -193,6 +220,9 @@ export function Playground() {
 	)
 	const [items, setItems] = useState<HistoryItem[]>([])
 	const [input, setInput] = useState("")
+	const [attachments, setAttachments] = useState<ImageAttachment[]>([])
+	const [attachmentError, setAttachmentError] = useState<string | null>(null)
+	const [isDraggingImage, setIsDraggingImage] = useState(false)
 	const [isRunning, setIsRunning] = useState(false)
 	const [error, setError] = useState<string | null>(null)
 	const [entries, setEntries] = useState<InspectorEntry[]>([])
@@ -202,6 +232,8 @@ export function Playground() {
 
 	const abortRef = useRef<AbortController | null>(null)
 	const transcriptRef = useRef<HTMLDivElement>(null)
+	const fileInputRef = useRef<HTMLInputElement>(null)
+	const dragDepthRef = useRef(0)
 	const isSignedIn = authState.status === "signed-in"
 
 	const markCovered = useCallback((id: CoverageId) => {
@@ -217,9 +249,45 @@ export function Playground() {
 		])
 	}, [])
 
+	const addFiles = useCallback(async (files: FileList | File[]) => {
+		const list = Array.from(files)
+		if (list.length === 0) {
+			return
+		}
+
+		setAttachmentError(null)
+		const { attachments: decoded, errors } = await readImageFiles(list)
+
+		setAttachments((current) => {
+			const merged = [...current, ...decoded]
+			const overflow = merged.length - MAX_ATTACHMENTS
+			if (overflow > 0) {
+				errors.push(
+					`Only ${MAX_ATTACHMENTS} images per message; dropped the last ${overflow}.`,
+				)
+			}
+			return merged.slice(0, MAX_ATTACHMENTS)
+		})
+
+		if (errors.length > 0) {
+			setAttachmentError(errors.join(" "))
+		}
+	}, [])
+
+	const removeAttachment = useCallback((id: string) => {
+		setAttachments((current) => current.filter((image) => image.id !== id))
+	}, [])
+
+	const imageGen = useImageGeneration({
+		imageModels,
+		onCoverage: markCovered,
+		onEntry: addEntry,
+	})
+
 	useEffect(() => {
 		if (!isSignedIn) {
 			setModels([])
+			setImageModels([])
 			setModelsError(null)
 			return
 		}
@@ -251,11 +319,13 @@ export function Playground() {
 				const ids = data
 					.map((entry) => entry.id)
 					.filter((id): id is string => typeof id === "string")
-					.filter((id) => !id.includes("image"))
+				const chatIds = ids.filter((id) => !id.includes("image"))
+				const generationIds = ids.filter((id) => id.includes("image"))
 
-				setModels(ids)
+				setModels(chatIds)
+				setImageModels(generationIds)
 				setModel((current) =>
-					current && ids.includes(current) ? current : (ids[0] ?? ""),
+					current && chatIds.includes(current) ? current : (chatIds[0] ?? ""),
 				)
 				setModelsError(null)
 				markCovered("models")
@@ -288,21 +358,31 @@ export function Playground() {
 			setEntries([])
 			setCovered(new Set())
 			setError(null)
+			setAttachments([])
+			setAttachmentError(null)
+			imageGen.reset()
 		}
 	}
 
-	const send = async (prompt: string) => {
+	const send = async (prompt: string, images: ImageAttachment[] = []) => {
 		const text = prompt.trim()
-		if (!text || isRunning || !isSignedIn || !model) {
+		if ((!text && images.length === 0) || isRunning || !isSignedIn || !model) {
 			return
 		}
 
 		setError(null)
 		setInput("")
+		setAttachments([])
+		setAttachmentError(null)
 
 		const base: HistoryItem[] = [
 			...items,
-			{ kind: "user", id: newId("user"), text },
+			{
+				kind: "user",
+				id: newId("user"),
+				text,
+				images: images.length > 0 ? images : undefined,
+			},
 		]
 		setItems(base)
 
@@ -312,6 +392,9 @@ export function Playground() {
 
 		markCovered(endpoint === "responses" ? "responses" : "chat")
 		markCovered(stream ? "streaming" : "non-streaming")
+		if (images.length > 0) {
+			markCovered("vision")
+		}
 
 		let working = base
 		try {
@@ -389,9 +472,15 @@ export function Playground() {
 		abortRef.current?.abort()
 		setItems([])
 		setError(null)
+		setAttachments([])
+		setAttachmentError(null)
 	}
 
-	const canSend = isSignedIn && !isRunning && input.trim().length > 0 && !!model
+	const canSend =
+		isSignedIn &&
+		!isRunning &&
+		(input.trim().length > 0 || attachments.length > 0) &&
+		!!model
 
 	return (
 		<main className="playgroundShell">
@@ -405,7 +494,25 @@ export function Playground() {
 						width={188}
 					/>
 				</Link>
-				<span className="playgroundTitle">Playground</span>
+				<div className="playgroundTitleGroup">
+					<span className="playgroundTitle">Playground</span>
+					<fieldset className="headerModeToggle">
+						<button
+							aria-pressed={mode === "chat"}
+							onClick={() => setMode("chat")}
+							type="button"
+						>
+							Chat
+						</button>
+						<button
+							aria-pressed={mode === "image"}
+							onClick={() => setMode("image")}
+							type="button"
+						>
+							Image generation
+						</button>
+					</fieldset>
+				</div>
 				<a
 					aria-label="GitHub"
 					className="githubLink"
@@ -444,114 +551,126 @@ export function Playground() {
 						) : null}
 					</section>
 
-					<section className="controlGroup">
-						<h2>Model</h2>
-						<select
-							disabled={!isSignedIn || models.length === 0}
-							onChange={(event) => setModel(event.target.value)}
-							value={model}
-						>
-							{models.length === 0 ? (
-								<option value="">
-									{isSignedIn ? "Loading models..." : "Sign in first"}
-								</option>
-							) : null}
-							{models.map((id) => (
-								<option key={id} value={id}>
-									{id}
-								</option>
-							))}
-						</select>
-						<p className="controlHint">
-							From <code>GET /v1/models</code>, scoped to your ChatGPT plan.
-						</p>
-						{modelsError ? (
-							<p className="errorText" role="alert">
-								{modelsError}
-							</p>
-						) : null}
-					</section>
-
-					<section className="controlGroup">
-						<h2>Endpoint</h2>
-						<fieldset className="segmented">
-							{(["responses", "chat-completions"] as EndpointId[]).map((id) => (
-								<button
-									aria-pressed={endpoint === id}
-									key={id}
-									onClick={() => setEndpoint(id)}
-									type="button"
+					{mode === "chat" ? (
+						<>
+							<section className="controlGroup">
+								<h2>Model</h2>
+								<select
+									disabled={!isSignedIn || models.length === 0}
+									onChange={(event) => setModel(event.target.value)}
+									value={model}
 								>
-									{endpointLabel[id]}
-								</button>
-							))}
-						</fieldset>
-						<p className="controlHint">
-							Posts to <code>{endpointPath[endpoint]}</code>. Both are
-							stateless, so the full conversation is resent every turn.
-						</p>
-					</section>
+									{models.length === 0 ? (
+										<option value="">
+											{isSignedIn ? "Loading models..." : "Sign in first"}
+										</option>
+									) : null}
+									{models.map((id) => (
+										<option key={id} value={id}>
+											{id}
+										</option>
+									))}
+								</select>
+								<p className="controlHint">
+									From <code>GET /v1/models</code>, scoped to your ChatGPT plan.
+								</p>
+								{modelsError ? (
+									<p className="errorText" role="alert">
+										{modelsError}
+									</p>
+								) : null}
+							</section>
 
-					<section className="controlGroup">
-						<h2>Options</h2>
-						<label className="checkbox">
-							<input
-								checked={stream}
-								onChange={(event) => setStream(event.target.checked)}
-								type="checkbox"
-							/>
-							<span>Stream the response</span>
-						</label>
-						<label className="checkbox">
-							<input
-								checked={toolsEnabled}
-								onChange={(event) => setToolsEnabled(event.target.checked)}
-								type="checkbox"
-							/>
-							<span>Send tool definitions</span>
-						</label>
-						<label className="fieldLabel" htmlFor="reasoning-effort">
-							Reasoning effort
-						</label>
-						<select
-							id="reasoning-effort"
-							onChange={(event) =>
-								setReasoningEffort(event.target.value as ReasoningEffort)
-							}
-							value={reasoningEffort}
-						>
-							{reasoningEfforts.map((effort) => (
-								<option key={effort} value={effort}>
-									{effort}
-								</option>
-							))}
-						</select>
-						<label className="fieldLabel" htmlFor="instructions">
-							System instructions
-						</label>
-						<textarea
-							id="instructions"
-							onChange={(event) => setInstructions(event.target.value)}
-							rows={3}
-							value={instructions}
+							<section className="controlGroup">
+								<h2>Endpoint</h2>
+								<fieldset className="segmented">
+									{(["responses", "chat-completions"] as EndpointId[]).map(
+										(id) => (
+											<button
+												aria-pressed={endpoint === id}
+												key={id}
+												onClick={() => setEndpoint(id)}
+												type="button"
+											>
+												{endpointLabel[id]}
+											</button>
+										),
+									)}
+								</fieldset>
+								<p className="controlHint">
+									Posts to <code>{endpointPath[endpoint]}</code>. Both are
+									stateless, so the full conversation is resent every turn.
+								</p>
+							</section>
+
+							<section className="controlGroup">
+								<h2>Options</h2>
+								<label className="checkbox">
+									<input
+										checked={stream}
+										onChange={(event) => setStream(event.target.checked)}
+										type="checkbox"
+									/>
+									<span>Stream the response</span>
+								</label>
+								<label className="checkbox">
+									<input
+										checked={toolsEnabled}
+										onChange={(event) => setToolsEnabled(event.target.checked)}
+										type="checkbox"
+									/>
+									<span>Send tool definitions</span>
+								</label>
+								<label className="fieldLabel" htmlFor="reasoning-effort">
+									Reasoning effort
+								</label>
+								<select
+									id="reasoning-effort"
+									onChange={(event) =>
+										setReasoningEffort(event.target.value as ReasoningEffort)
+									}
+									value={reasoningEffort}
+								>
+									{reasoningEfforts.map((effort) => (
+										<option key={effort} value={effort}>
+											{effort}
+										</option>
+									))}
+								</select>
+								<label className="fieldLabel" htmlFor="instructions">
+									System instructions
+								</label>
+								<textarea
+									id="instructions"
+									onChange={(event) => setInstructions(event.target.value)}
+									rows={3}
+									value={instructions}
+								/>
+							</section>
+
+							<section className="controlGroup">
+								<h2>Tools</h2>
+								<ul className="toolList">
+									{playgroundTools.map((entry) => (
+										<li key={entry.name}>
+											<code>{entry.name}</code>
+											<span>{entry.description}</span>
+										</li>
+									))}
+								</ul>
+								<p className="controlHint">
+									Executed in your browser, then sent back as tool results for
+									the next round.
+								</p>
+							</section>
+						</>
+					) : (
+						<ImageOptionsSidebar
+							controller={imageGen}
+							imageModels={imageModels}
+							isSignedIn={isSignedIn}
 						/>
-					</section>
-
-					<section className="controlGroup">
-						<h2>Tools</h2>
-						<ul className="toolList">
-							{playgroundTools.map((entry) => (
-								<li key={entry.name}>
-									<code>{entry.name}</code>
-									<span>{entry.description}</span>
-								</li>
-							))}
-						</ul>
-						<p className="controlHint">
-							Executed in your browser, then sent back as tool results for the
-							next round.
-						</p>
-					</section>
+					)}
 
 					<section className="controlGroup">
 						<h2>Coverage</h2>
@@ -572,95 +691,196 @@ export function Playground() {
 				</aside>
 
 				<section className="conversation">
-					<div className="conversationScroll" ref={transcriptRef}>
-						{items.length === 0 ? (
-							<div className="emptyState">
-								<h1>Test every endpoint end to end</h1>
-								<p>
-									Sign in with your ChatGPT account, pick an endpoint, and watch
-									the raw stream in the inspector.
+					{mode === "chat" ? (
+						<>
+							<div className="conversationScroll" ref={transcriptRef}>
+								{items.length === 0 ? (
+									<div className="emptyState">
+										<h1>Test every endpoint end to end</h1>
+										<p>
+											Sign in with your ChatGPT account, pick an endpoint, and
+											watch the raw stream in the inspector.
+										</p>
+										<div className="suggestions">
+											{suggestions.map((suggestion) => (
+												<button
+													disabled={!isSignedIn || isRunning}
+													key={suggestion.label}
+													onClick={() => void send(suggestion.prompt)}
+													type="button"
+												>
+													<strong>{suggestion.label}</strong>
+													<span>{suggestion.prompt}</span>
+												</button>
+											))}
+										</div>
+									</div>
+								) : (
+									<Transcript isRunning={isRunning} items={items} />
+								)}
+							</div>
+
+							{error ? (
+								<p className="errorBanner" role="alert">
+									{error}
 								</p>
-								<div className="suggestions">
-									{suggestions.map((suggestion) => (
+							) : null}
+
+							<form
+								className={`composer ${isDraggingImage ? "composer--dragging" : ""}`}
+								onDragEnter={(event) => {
+									if (!event.dataTransfer.types.includes("Files")) {
+										return
+									}
+									event.preventDefault()
+									dragDepthRef.current += 1
+									setIsDraggingImage(true)
+								}}
+								onDragLeave={() => {
+									dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+									if (dragDepthRef.current === 0) {
+										setIsDraggingImage(false)
+									}
+								}}
+								onDragOver={(event) => {
+									if (event.dataTransfer.types.includes("Files")) {
+										event.preventDefault()
+									}
+								}}
+								onDrop={(event) => {
+									event.preventDefault()
+									dragDepthRef.current = 0
+									setIsDraggingImage(false)
+									if (isSignedIn && event.dataTransfer.files.length > 0) {
+										void addFiles(event.dataTransfer.files)
+									}
+								}}
+								onSubmit={(event) => {
+									event.preventDefault()
+									void send(input, attachments)
+								}}
+							>
+								{attachments.length > 0 ? (
+									<div className="attachmentsRow">
+										{attachments.map((image) => (
+											<div className="attachmentThumb" key={image.id}>
+												{/* biome-ignore lint/performance/noImgElement: data URLs, not files next/image can optimize */}
+												<img alt={image.name} src={image.dataUrl} />
+												<button
+													aria-label={`Remove ${image.name}`}
+													onClick={() => removeAttachment(image.id)}
+													type="button"
+												>
+													<XIcon />
+												</button>
+											</div>
+										))}
+									</div>
+								) : null}
+
+								{attachmentError ? (
+									<p className="attachmentError" role="alert">
+										{attachmentError}
+									</p>
+								) : null}
+
+								<div className="composerRow">
+									<input
+										accept="image/*"
+										hidden
+										multiple
+										onChange={(event) => {
+											if (event.target.files) {
+												void addFiles(event.target.files)
+											}
+											event.target.value = ""
+										}}
+										ref={fileInputRef}
+										type="file"
+									/>
+									<button
+										aria-label="Attach images"
+										className="composerAttachButton"
+										disabled={
+											!isSignedIn || attachments.length >= MAX_ATTACHMENTS
+										}
+										onClick={() => fileInputRef.current?.click()}
+										type="button"
+									>
+										<ImageIcon />
+									</button>
+									<textarea
+										disabled={!isSignedIn}
+										onChange={(event) => setInput(event.target.value)}
+										onKeyDown={(event) => {
+											if (event.key === "Enter" && !event.shiftKey) {
+												event.preventDefault()
+												void send(input, attachments)
+											}
+										}}
+										onPaste={(event) => {
+											const files = Array.from(
+												event.clipboardData.files,
+											).filter((file) => file.type.startsWith("image/"))
+											if (files.length > 0) {
+												event.preventDefault()
+												void addFiles(files)
+											}
+										}}
+										placeholder={
+											isSignedIn
+												? "Ask anything, or drop / paste an image. Shift+Enter for a new line."
+												: "Sign in with ChatGPT to start"
+										}
+										rows={1}
+										value={input}
+									/>
+									{isRunning ? (
 										<button
-											disabled={!isSignedIn || isRunning}
-											key={suggestion.label}
-											onClick={() => void send(suggestion.prompt)}
+											aria-label="Stop"
+											className="composerButton composerButton--stop"
+											onClick={stop}
 											type="button"
 										>
-											<strong>{suggestion.label}</strong>
-											<span>{suggestion.prompt}</span>
+											<StopIcon />
 										</button>
-									))}
+									) : (
+										<button
+											aria-label="Send"
+											className="composerButton"
+											disabled={!canSend}
+											type="submit"
+										>
+											<SendIcon />
+										</button>
+									)}
 								</div>
+							</form>
+
+							<div className="conversationFooter">
+								<button
+									disabled={items.length === 0}
+									onClick={reset}
+									type="button"
+								>
+									New conversation
+								</button>
+								<button
+									onClick={() => setShowInspector((open) => !open)}
+									type="button"
+								>
+									{showInspector ? "Hide" : "Show"} inspector
+								</button>
 							</div>
-						) : (
-							<Transcript isRunning={isRunning} items={items} />
-						)}
-					</div>
-
-					{error ? (
-						<p className="errorBanner" role="alert">
-							{error}
-						</p>
-					) : null}
-
-					<form
-						className="composer"
-						onSubmit={(event) => {
-							event.preventDefault()
-							void send(input)
-						}}
-					>
-						<textarea
-							disabled={!isSignedIn}
-							onChange={(event) => setInput(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Enter" && !event.shiftKey) {
-									event.preventDefault()
-									void send(input)
-								}
-							}}
-							placeholder={
-								isSignedIn
-									? "Ask anything. Shift+Enter for a new line."
-									: "Sign in with ChatGPT to start"
-							}
-							rows={1}
-							value={input}
+						</>
+					) : (
+						<ImageGenerationMain
+							controller={imageGen}
+							isSignedIn={isSignedIn}
+							onToggleInspector={() => setShowInspector((open) => !open)}
+							showInspector={showInspector}
 						/>
-						{isRunning ? (
-							<button
-								aria-label="Stop"
-								className="composerButton composerButton--stop"
-								onClick={stop}
-								type="button"
-							>
-								<StopIcon />
-							</button>
-						) : (
-							<button
-								aria-label="Send"
-								className="composerButton"
-								disabled={!canSend}
-								type="submit"
-							>
-								<SendIcon />
-							</button>
-						)}
-					</form>
-
-					<div className="conversationFooter">
-						<button disabled={items.length === 0} onClick={reset} type="button">
-							New conversation
-						</button>
-						<button
-							onClick={() => setShowInspector((open) => !open)}
-							type="button"
-						>
-							{showInspector ? "Hide" : "Show"} inspector
-						</button>
-					</div>
+					)}
 				</section>
 
 				{showInspector ? (

@@ -71,7 +71,13 @@ const toResponsesInput = (history: HistoryItem[]): unknown[] => {
 		if (item.kind === "user") {
 			input.push({
 				role: "user",
-				content: [{ type: "input_text", text: item.text }],
+				content: [
+					{ type: "input_text", text: item.text },
+					...(item.images ?? []).map((image) => ({
+						type: "input_image",
+						image_url: image.dataUrl,
+					})),
+				],
 			})
 			continue
 		}
@@ -122,7 +128,22 @@ const toChatMessages = (
 
 	for (const item of history) {
 		if (item.kind === "user") {
-			messages.push({ role: "user", content: item.text })
+			const images = item.images ?? []
+			messages.push({
+				role: "user",
+				content:
+					images.length === 0
+						? item.text
+						: [
+								...(item.text.length > 0
+									? [{ type: "text", text: item.text }]
+									: []),
+								...images.map((image) => ({
+									type: "image_url",
+									image_url: { url: image.dataUrl },
+								})),
+							],
+			})
 			continue
 		}
 

@@ -82,6 +82,38 @@ export const ToolIcon = () => (
 	</svg>
 )
 
+export const ImageIcon = () => (
+	<svg
+		aria-hidden="true"
+		fill="none"
+		focusable="false"
+		stroke="currentColor"
+		strokeLinecap="round"
+		strokeLinejoin="round"
+		strokeWidth="2"
+		viewBox="0 0 24 24"
+	>
+		<rect height="16" rx="2" width="18" x="3" y="4" />
+		<circle cx="9" cy="10" r="1.6" />
+		<path d="m4.5 18 5-5 3.5 3.5 3-3L20.5 18" />
+	</svg>
+)
+
+export const XIcon = () => (
+	<svg
+		aria-hidden="true"
+		fill="none"
+		focusable="false"
+		stroke="currentColor"
+		strokeLinecap="round"
+		strokeLinejoin="round"
+		strokeWidth="2.2"
+		viewBox="0 0 24 24"
+	>
+		<path d="M6 6l12 12M18 6 6 18" />
+	</svg>
+)
+
 export const BrainIcon = () => (
 	<svg
 		aria-hidden="true"

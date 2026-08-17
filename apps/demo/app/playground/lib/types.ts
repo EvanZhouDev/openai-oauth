@@ -1,3 +1,5 @@
+import type { ImageAttachment } from "./images"
+
 export type EndpointId = "responses" | "chat-completions"
 
 export type ReasoningEffort = "minimal" | "low" | "medium" | "high"
@@ -37,7 +39,7 @@ export type TurnMeta = {
  * are stateless here, so the whole history is resent on every request.
  */
 export type HistoryItem =
-	| { kind: "user"; id: string; text: string }
+	| { kind: "user"; id: string; text: string; images?: ImageAttachment[] }
 	| {
 			kind: "assistant"
 			id: string

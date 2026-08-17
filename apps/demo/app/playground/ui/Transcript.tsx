@@ -134,7 +134,23 @@ export function Transcript({
 				if (item.kind === "user") {
 					return (
 						<article className="turn turn--user" key={item.id}>
-							<div className="bubble">{item.text}</div>
+							{item.images && item.images.length > 0 ? (
+								<div className="userImages">
+									{item.images.map((image) => (
+										// biome-ignore lint/performance/noImgElement: data URLs, not files next/image can optimize
+										<img
+											alt={image.name}
+											height={image.height}
+											key={image.id}
+											src={image.dataUrl}
+											width={image.width}
+										/>
+									))}
+								</div>
+							) : null}
+							{item.text.length > 0 ? (
+								<div className="bubble">{item.text}</div>
+							) : null}
 						</article>
 					)
 				}

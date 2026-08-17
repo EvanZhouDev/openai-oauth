@@ -25,15 +25,47 @@
 	width: auto;
 }
 
+.playgroundTitleGroup {
+	align-items: center;
+	display: flex;
+	gap: 14px;
+	justify-self: start;
+}
+
 .playgroundTitle {
 	border: 1px solid var(--border);
 	border-radius: 999px;
 	color: var(--muted-strong);
+	flex: none;
 	font-size: 12px;
-	justify-self: start;
 	letter-spacing: 0.04em;
 	padding: 4px 10px;
 	text-transform: uppercase;
+}
+
+.headerModeToggle {
+	border: 1px solid var(--border);
+	border-radius: 999px;
+	display: inline-flex;
+	gap: 2px;
+	margin: 0;
+	padding: 2px;
+}
+
+.headerModeToggle button {
+	background: transparent;
+	border: 0;
+	border-radius: 999px;
+	color: var(--muted-strong);
+	cursor: pointer;
+	font-size: 12px;
+	padding: 5px 12px;
+	transition: background 120ms ease;
+}
+
+.headerModeToggle button[aria-pressed="true"] {
+	background: var(--text);
+	color: var(--background);
 }
 
 .playgroundShell .githubLink {
@@ -335,9 +367,66 @@
 	max-width: 760px;
 }
 
-.turn--user {
+/* Image generation ----------------------------------------------------- */
+
+.imageResults {
 	display: flex;
-	justify-content: flex-end;
+	flex-direction: column;
+	gap: 24px;
+	margin: 0 auto;
+	max-width: 760px;
+}
+
+.imageResult {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.imageResultPrompt {
+	line-height: 1.55;
+	margin: 0;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.imageResultMeta {
+	color: var(--muted);
+	font-size: 12px;
+	margin: 0;
+}
+
+.imageGallery {
+	display: grid;
+	gap: 10px;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+
+.imageGalleryItem {
+	border: 1px solid var(--border);
+	border-radius: 12px;
+	display: block;
+	overflow: hidden;
+	transition: border-color 120ms ease;
+}
+
+.imageGalleryItem:hover {
+	border-color: var(--border-strong);
+}
+
+.imageGalleryItem img {
+	aspect-ratio: 1 / 1;
+	display: block;
+	height: auto;
+	object-fit: cover;
+	width: 100%;
+}
+
+.turn--user {
+	align-items: flex-end;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
 }
 
 .turn--user .bubble {
@@ -347,6 +436,24 @@
 	padding: 10px 15px;
 	white-space: pre-wrap;
 	word-break: break-word;
+}
+
+.userImages {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	justify-content: flex-end;
+	max-width: 80%;
+}
+
+.userImages img {
+	border-radius: 12px;
+	display: block;
+	height: auto;
+	max-height: 220px;
+	max-width: 220px;
+	object-fit: cover;
+	width: auto;
 }
 
 .turn--assistant {
@@ -538,11 +645,32 @@
 }
 
 .composer {
-	align-items: flex-end;
 	border-top: 1px solid var(--composer-border);
 	display: flex;
-	gap: 10px;
+	flex-direction: column;
+	gap: 8px;
 	padding: 14px 20px;
+	position: relative;
+	transition: background 120ms ease;
+}
+
+.composer--dragging {
+	background: color-mix(in srgb, var(--green) 8%, transparent);
+}
+
+.composer--dragging::after {
+	border: 1.5px dashed var(--green);
+	border-radius: 14px;
+	content: "";
+	inset: 6px;
+	pointer-events: none;
+	position: absolute;
+}
+
+.composerRow {
+	align-items: flex-end;
+	display: flex;
+	gap: 10px;
 }
 
 .composer textarea {
@@ -558,6 +686,83 @@
 	max-height: 180px;
 	padding: 11px 14px;
 	resize: none;
+}
+
+.composerAttachButton {
+	align-items: center;
+	background: transparent;
+	border: 1px solid var(--border);
+	border-radius: 50%;
+	color: var(--muted-strong);
+	cursor: pointer;
+	display: inline-flex;
+	flex: none;
+	height: 38px;
+	justify-content: center;
+	width: 38px;
+}
+
+.composerAttachButton:hover:not(:disabled) {
+	border-color: var(--border-strong);
+	color: var(--text);
+}
+
+.composerAttachButton:disabled {
+	cursor: not-allowed;
+	opacity: 0.4;
+}
+
+.composerAttachButton svg {
+	height: 18px;
+	width: 18px;
+}
+
+.attachmentsRow {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 8px;
+}
+
+.attachmentThumb {
+	border-radius: 10px;
+	height: 56px;
+	overflow: hidden;
+	position: relative;
+	width: 56px;
+}
+
+.attachmentThumb img {
+	display: block;
+	height: 100%;
+	object-fit: cover;
+	width: 100%;
+}
+
+.attachmentThumb button {
+	align-items: center;
+	background: rgb(0 0 0 / 60%);
+	border: 0;
+	border-radius: 50%;
+	color: #fff;
+	cursor: pointer;
+	display: inline-flex;
+	height: 18px;
+	justify-content: center;
+	position: absolute;
+	right: 3px;
+	top: 3px;
+	width: 18px;
+}
+
+.attachmentThumb button svg {
+	height: 10px;
+	width: 10px;
+}
+
+.attachmentError {
+	color: var(--error);
+	font-size: 12px;
+	margin: 0;
 }
 
 .composerButton {

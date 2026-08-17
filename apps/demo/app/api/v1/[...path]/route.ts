@@ -82,7 +82,13 @@ export async function POST(
 	context: RouteContext,
 ): Promise<Response> {
 	const endpoint = await toEndpoint(context)
-	if (endpoint !== "responses" && endpoint !== "chat/completions") {
+	const knownEndpoints = [
+		"responses",
+		"chat/completions",
+		"images/generations",
+		"images/edits",
+	]
+	if (!knownEndpoints.includes(endpoint)) {
 		return errorResponse(
 			`Unknown endpoint /v1/${endpoint}.`,
 			404,
@@ -95,6 +101,50 @@ export async function POST(
 
 		if (endpoint === "chat/completions") {
 			return await handleChatCompletions(request, provider)
+		}
+
+		if (endpoint === "images/generations") {
+			const body: unknown = await request.json()
+			if (!isRecord(body)) {
+				return errorResponse("Request body must be a JSON object.")
+			}
+
+			const upstream = await transport.request("/v1/images/generations", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(body),
+				signal: request.signal,
+			})
+			return copyUpstreamResponse(upstream)
+		}
+
+		if (endpoint === "images/edits") {
+			if (
+				!request.headers.get("content-type")?.includes("multipart/form-data")
+			) {
+				return errorResponse(
+					"Image editing requires a multipart/form-data request body.",
+				)
+			}
+
+			let formData: FormData
+			try {
+				formData = await request.formData()
+			} catch {
+				return errorResponse(
+					"Image editing request contains invalid form data.",
+				)
+			}
+
+			// No Content-Type header here: the transport's fetch pipeline
+			// converts this FormData into Codex's JSON `images` field itself,
+			// and setting one would fight the boundary it needs to parse it.
+			const upstream = await transport.request("/v1/images/edits", {
+				method: "POST",
+				body: formData,
+				signal: request.signal,
+			})
+			return copyUpstreamResponse(upstream)
 		}
 
 		{
