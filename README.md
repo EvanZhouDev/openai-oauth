@@ -177,6 +177,19 @@ small OpenAI-compatible gateway that reads request-bound credentials with
 `openaiCredentials(request)` — the same pattern any hosted app would use, since
 browsers cannot call the upstream API directly because of CORS.
 
+To run the playground locally:
+
+```bash
+bun install
+bun run --cwd apps/demo dev
+```
+
+Then open [http://localhost:3000/playground](http://localhost:3000/playground).
+Use the **Sign in with ChatGPT** CTA in the Account panel. The CTA detects the
+Chrome or Firefox extension, offers the correct install link when it is missing,
+and completes the OAuth callback in a popup without navigating away from the
+playground.
+
 ## `openai-oauth` CLI
 
 ```bash

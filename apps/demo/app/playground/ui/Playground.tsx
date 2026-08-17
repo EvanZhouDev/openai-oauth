@@ -528,9 +528,18 @@ export function Playground() {
 				<aside className="controls">
 					<section className="controlGroup">
 						<h2>Account</h2>
+						<div className="authMethod">
+							<span aria-hidden="true" className="authMethodDot" />
+							<span>
+								<strong>Extension-backed OAuth</strong>
+								<small>The callback returns securely to this playground.</small>
+							</span>
+						</div>
 						<SignInWithChatGPT
+							aria-label="Sign in with ChatGPT"
 							hideAttribution
 							onStateChange={handleAuthStateChange}
+							openMode="popup"
 							style={{ width: "100%" }}
 						/>
 						{isSignedIn ? (
@@ -538,10 +547,16 @@ export function Playground() {
 								Requests are signed with your ChatGPT session and proxied
 								through <code>/api/v1/*</code> on this site.
 							</p>
+						) : authState.status === "needs-extension" ? (
+							<p className="controlHint">
+								Install the browser extension in the prompt, then continue to
+								sign in.
+							</p>
 						) : (
 							<p className="controlHint">
-								Sign in to load your account&apos;s models and start a
-								conversation.
+								Use the CTA to load your account&apos;s models and start a
+								conversation. If needed, it will guide you through installing
+								the extension.
 							</p>
 						)}
 						{authState.status === "error" ? (

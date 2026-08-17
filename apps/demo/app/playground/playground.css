@@ -21,8 +21,6 @@
 
 .playgroundHeader .wordmark img {
 	display: block;
-	height: 26px;
-	width: auto;
 }
 
 .playgroundTitleGroup {
@@ -121,6 +119,43 @@
 	letter-spacing: 0.08em;
 	margin: 0;
 	text-transform: uppercase;
+}
+
+.authMethod {
+	align-items: center;
+	background: color-mix(in srgb, var(--green) 8%, var(--panel));
+	border: 1px solid color-mix(in srgb, var(--green) 30%, var(--border));
+	border-radius: 10px;
+	display: flex;
+	gap: 9px;
+	padding: 9px 10px;
+}
+
+.authMethodDot {
+	background: var(--green);
+	border-radius: 50%;
+	box-shadow: 0 0 0 4px color-mix(in srgb, var(--green) 13%, transparent);
+	flex: none;
+	height: 7px;
+	width: 7px;
+}
+
+.authMethod > span:last-child {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.authMethod strong {
+	color: var(--text);
+	font-size: 12px;
+	font-weight: 600;
+}
+
+.authMethod small {
+	color: var(--muted);
+	font-size: 11px;
+	line-height: 1.35;
 }
 
 .controlHint {
