@@ -74,6 +74,18 @@ export type ChatRequest = {
 		| "xhigh"
 		| "max"
 		| "ultra"
+	response_format?:
+		| {
+				type?: "json_object"
+		  }
+		| {
+				type?: "json_schema"
+				json_schema?: {
+					name?: string
+					description?: string
+					schema?: JsonObject
+				}
+		  }
 }
 
 export type ChatRequestSummary = {
