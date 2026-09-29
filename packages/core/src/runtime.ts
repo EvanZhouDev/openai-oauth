@@ -660,6 +660,11 @@ const normalizeCodexResponsesBodyInternal = (
 		normalized.stream = true
 	}
 	delete normalized.max_output_tokens
+	// The ChatGPT Codex backend rejects `prompt_cache_retention` for some models
+	// (`invalid_request_error: prompt_cache_retention is not supported on this model`).
+	// Recent Codex clients send it by default, so drop it to keep the upstream request
+	// valid across every model.
+	delete normalized.prompt_cache_retention
 	return normalized
 }
 

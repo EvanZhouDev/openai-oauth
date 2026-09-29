@@ -60,15 +60,17 @@ afterEach(() => {
 })
 
 describe("normalizeCodexResponsesBody", () => {
-	test("adds an empty-string fallback, disables store, and strips max_output_tokens", () => {
+	test("adds an empty-string fallback, disables store, and strips max_output_tokens and prompt_cache_retention", () => {
 		const normalized = normalizeCodexResponsesBody({
 			model: "gpt-5.2",
 			max_output_tokens: 128,
+			prompt_cache_retention: "24h",
 		})
 
 		expect(normalized.instructions).toBe("")
 		expect(normalized.store).toBe(false)
 		expect("max_output_tokens" in normalized).toBe(false)
+		expect("prompt_cache_retention" in normalized).toBe(false)
 	})
 
 	test("preserves caller-provided instructions and always disables storage", () => {
