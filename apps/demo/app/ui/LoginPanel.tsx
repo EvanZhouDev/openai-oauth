@@ -13,7 +13,7 @@ type DemoMode = "sign-in" | "local-api"
 type RequestCodeTab = "app" | "route"
 type RequestKind = "text" | "image"
 
-const requestModel = "gpt-5.4-mini"
+const requestModel = "gpt-6-luna"
 const maxResponseLines = 10
 
 const initialAuthState: SignInWithChatGPTState = {
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
   const openai = createOpenAIOAuth(openaiCredentials(request));
 
   const result = streamText({
-    model: openai("gpt-5.4-mini"),
+    model: openai("gpt-6-luna"),
     prompt,
   });
 
