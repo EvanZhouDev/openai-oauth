@@ -215,6 +215,8 @@ export const createToolSet = (tools: ChatToolDefinition[] | undefined) => {
 			toolName,
 			tool({
 				description: definition.function?.description,
+				// Preserve Chat Completions' non-strict default across the Responses bridge.
+				strict: definition.function?.strict ?? false,
 				inputSchema: jsonSchema(
 					definition.function?.parameters ?? {
 						type: "object",

@@ -26,6 +26,7 @@ export type ChatToolDefinition = {
 		name?: string
 		description?: string
 		parameters?: JsonObject
+		strict?: boolean
 	}
 }
 
