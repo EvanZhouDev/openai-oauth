@@ -6,9 +6,12 @@ import {
 } from "@openai-oauth/ai-sdk"
 import {
 	createOpenAIOAuthTransport,
+	type OpenAIOAuth,
+	type OpenAIOAuthSession,
 	type OpenAIOAuthTransport,
 } from "@openai-oauth/core"
 import { openaiCredentials } from "@openai-oauth/local"
+import { handleAccountRequest } from "./account-handler.js"
 import { handleChatCompletionsRequest } from "./chat-completions.js"
 import {
 	handleImageEditRequest,
@@ -16,10 +19,12 @@ import {
 } from "./images.js"
 import { createRequestLogger } from "./logging.js"
 import { createModelResolver } from "./models.js"
+import { handleQuotaRequest } from "./quota-handler.js"
 import { handleResponsesRequest } from "./responses.js"
 import {
 	DEFAULT_HOST,
 	DEFAULT_PORT,
+	isRecord,
 	resolveAddress,
 	toErrorResponse,
 	toJsonResponse,
@@ -35,6 +40,7 @@ const handleRoutes = async (
 	request: Request,
 	provider: OpenAIOAuthProvider,
 	client: OpenAIOAuthTransport,
+	auth: ReturnType<typeof openaiCredentials>,
 	resolveModels: () => Promise<string[]>,
 	requestLogger: ReturnType<typeof createRequestLogger>,
 ): Promise<Response> => {
@@ -44,6 +50,20 @@ const handleRoutes = async (
 			ok: true,
 			replay_state: "stateless",
 		})
+	}
+
+	if (
+		request.method === "GET" &&
+		(url.pathname === "/v1/account" || url.pathname === "/v1/me")
+	) {
+		return handleAccountRequest(auth)
+	}
+
+	if (
+		request.method === "GET" &&
+		(url.pathname === "/v1/quota" || url.pathname === "/v1/usage")
+	) {
+		return handleQuotaRequest(auth, resolveModels)
 	}
 
 	if (request.method === "GET" && url.pathname === "/v1/models") {
@@ -87,7 +107,21 @@ const handleRoutes = async (
 }
 
 const createOpenAIOAuthRuntime = (settings: OpenAIOAuthServerOptions = {}) => {
-	const auth = openaiCredentials(settings)
+	const auth: OpenAIOAuth =
+		typeof settings.auth === "function"
+			? {
+					kind: "openai-oauth",
+					getSession: async () =>
+						(settings.auth as () => Promise<OpenAIOAuthSession | null>)(),
+				}
+			: isRecord(settings.auth)
+				? {
+						kind: "openai-oauth",
+						getSession: async () =>
+							settings.auth as unknown as OpenAIOAuthSession,
+					}
+				: openaiCredentials(settings)
+
 	const sharedSettings = {
 		...settings,
 		auth: () => auth.getSession(),
@@ -104,6 +138,7 @@ const createOpenAIOAuthRuntime = (settings: OpenAIOAuthServerOptions = {}) => {
 				request,
 				provider,
 				client,
+				auth,
 				resolveModels,
 				requestLogger,
 			)

@@ -118,7 +118,10 @@ export type OpenAIOAuthServerLogEvent =
 			requestId: string
 	  }
 
+import type { OpenAIOAuthSessionInput } from "@openai-oauth/core"
+
 export type OpenAIOAuthServerOptions = LocalOpenAIOAuthOptions & {
+	auth?: OpenAIOAuthSessionInput
 	host?: string
 	port?: number
 	models?: string[]

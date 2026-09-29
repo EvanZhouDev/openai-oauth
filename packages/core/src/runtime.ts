@@ -275,6 +275,101 @@ export const deriveChatGptAccountIsFedRamp = (
 	return isRecord(authClaim) && authClaim.chatgpt_account_is_fedramp === true
 }
 
+export type OpenAIOAuthAccountInfo = {
+	user: {
+		id?: string
+		email?: string
+		name?: string
+		picture?: string
+		emailVerified?: boolean
+	}
+	subscription: {
+		planType: string
+		accountId?: string
+		isFedRamp: boolean
+		orgId?: string
+	}
+	session: {
+		status: "active" | "expired" | "unknown"
+		expiresAt?: string
+	}
+}
+
+export type OpenAIOAuthQuotaModelInfo = {
+	remainingRequests: number
+	limit: number
+	resetsAt?: string
+	resetsInSeconds?: number
+}
+
+export type OpenAIOAuthQuotaInfo = {
+	accountEmail?: string
+	planType: string
+	models: Record<string, OpenAIOAuthQuotaModelInfo>
+	capabilities: {
+		supportsVision: boolean
+		supportsImageGeneration: boolean
+		supportsReasoningTraces: boolean
+		supportsToolCalling: boolean
+	}
+}
+
+export const deriveAccountDetails = (
+	idToken?: string,
+	accessToken?: string,
+): OpenAIOAuthAccountInfo => {
+	const idClaims = parseJwtClaims(idToken)
+	const accessClaims = parseJwtClaims(accessToken)
+	const claims = idClaims ?? accessClaims ?? {}
+
+	const user = {
+		id: typeof claims.sub === "string" ? claims.sub : undefined,
+		email: typeof claims.email === "string" ? claims.email : undefined,
+		name: typeof claims.name === "string" ? claims.name : undefined,
+		picture: typeof claims.picture === "string" ? claims.picture : undefined,
+		emailVerified:
+			typeof claims.email_verified === "boolean"
+				? claims.email_verified
+				: undefined,
+	}
+
+	const authClaim = isRecord(claims["https://api.openai.com/auth"])
+		? claims["https://api.openai.com/auth"]
+		: undefined
+
+	const planType =
+		authClaim && typeof authClaim.chatgpt_plan_type === "string"
+			? authClaim.chatgpt_plan_type
+			: typeof claims.chatgpt_plan_type === "string"
+				? claims.chatgpt_plan_type
+				: typeof claims.plan_type === "string"
+					? claims.plan_type
+					: "unknown"
+
+	const accountId = deriveAccountId(idToken) ?? deriveAccountId(accessToken)
+	const isFedRamp =
+		deriveChatGptAccountIsFedRamp(idToken) ||
+		deriveChatGptAccountIsFedRamp(accessToken)
+
+	const exp = typeof claims.exp === "number" ? claims.exp : undefined
+	const expiresAt = exp ? new Date(exp * 1000).toISOString() : undefined
+	const now = Date.now()
+	const status = exp ? (exp * 1000 > now ? "active" : "expired") : "unknown"
+
+	return {
+		user,
+		subscription: {
+			planType,
+			accountId,
+			isFedRamp,
+		},
+		session: {
+			status,
+			expiresAt,
+		},
+	}
+}
+
 const resolveTokenUrl = (
 	issuer: string,
 	tokenUrl: string | undefined,

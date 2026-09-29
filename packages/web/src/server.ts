@@ -1,7 +1,8 @@
-import type {
-	FetchFunction,
-	OpenAIOAuth,
-	OpenAIOAuthSession,
+import {
+	deriveAccountDetails,
+	type FetchFunction,
+	type OpenAIOAuth,
+	type OpenAIOAuthSession,
 } from "@openai-oauth/core"
 
 export type WebServerOpenAIOAuthOptions = {
@@ -37,6 +38,11 @@ const getRequestSession = (input: Request | Headers): OpenAIOAuthSession => {
 		accountId,
 		isFedRamp: headers.get("x-openai-fedramp") === "true",
 	}
+}
+
+export const openaiAccountDetails = (input: Request | Headers) => {
+	const session = getRequestSession(input)
+	return deriveAccountDetails(session.idToken, session.accessToken)
 }
 
 export const openaiCredentials = (
