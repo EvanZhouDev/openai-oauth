@@ -161,6 +161,15 @@ npx openai-oauth
 
 This starts an OpenAI-compatible endpoint (by default at `localhost:10531`) that is connected to your ChatGPT account.
 
+To also expose Claude through your own Claude Pro, Max, Team, or Enterprise subscription, sign in with the Claude CLI and enable the local-only integration:
+
+```bash
+npx openai-oauth login --claude
+npx openai-oauth --claude
+```
+
+This adds `claude-sonnet`, `claude-opus`, and `claude-haiku` to `/v1/models`. Claude requests use `/v1/chat/completions`; API-key and cloud-provider credentials are excluded so the Agent SDK uses your Claude subscription login.
+
 Press `d` to keep it running in the background or `q` to quit. You can also start it in the background directly:
 
 ```bash
@@ -211,6 +220,12 @@ The CLI also supports a few configuration options that generally do not need to 
       <td><code>--port</code></td>
       <td><code>10531</code></td>
       <td>Port the local proxy binds to.</td>
+    </tr>
+	<tr>
+	  <td>Claude subscription</td>
+      <td><code>--claude</code></td>
+      <td>Disabled</td>
+      <td>Add Claude model aliases using the locally signed-in Claude subscription. This mode only permits loopback hosting.</td>
     </tr>
 	<tr>
 	  <td>Model allowlist</td>
@@ -586,7 +601,8 @@ function CustomLogin() {
 
 What is intentionally not there yet:
 
-- Only models supported by Codex are available. This list updates over time and depends on your ChatGPT plan.
+- OpenAI model availability is limited to models supported by Codex and depends on your ChatGPT plan.
+- Claude subscription support is opt-in, text-only, and limited to `/v1/chat/completions`; tool calls are not supported.
 - There is no stateful replay support on the CLI `/v1/responses` endpoint. The proxy is stateless and expects callers to send the full conversation history.
 - Hosted browser sign-in currently supports Chrome and Firefox. Safari is not yet supported.
 
@@ -605,5 +621,7 @@ OpenAI OAuth uses ChatGPT credentials, which should be treated like passwords.
 Each person must use their own ChatGPT account and keep credentials private. Do not pool, share, or redistribute access tokens. Apps offering Sign in with ChatGPT must protect each user's credentials and use them only for requests that user authorizes.
 
 You are responsible for complying with OpenAI's [Terms of Use](https://openai.com/policies/terms-of-use/), [Usage Policies](https://openai.com/policies/usage-policies/), and any agreement that applies to your account. Do not bypass rate limits, restrictions, or safeguards.
+
+Claude subscription support is for ordinary individual use through Anthropic's Agent SDK. Do not host it, offer Claude login, or route another person's Free, Pro, or Max credentials. See Anthropic's [legal and compliance guidance](https://code.claude.com/docs/en/legal-and-compliance).
 
 Provided as-is with no warranties. OpenAI may change or disable the underlying services at any time, and you assume the risks of using this project.

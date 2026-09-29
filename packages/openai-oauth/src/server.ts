@@ -10,6 +10,7 @@ import {
 } from "@openai-oauth/core"
 import { openaiCredentials } from "@openai-oauth/local"
 import { handleChatCompletionsRequest } from "./chat-completions.js"
+import { CLAUDE_MODELS, isClaudeModel } from "./claude.js"
 import {
 	handleImageEditRequest,
 	handleImageGenerationRequest,
@@ -37,6 +38,7 @@ const handleRoutes = async (
 	client: OpenAIOAuthTransport,
 	resolveModels: () => Promise<string[]>,
 	requestLogger: ReturnType<typeof createRequestLogger>,
+	claude: boolean,
 ): Promise<Response> => {
 	const url = new URL(request.url)
 	if (request.method === "GET" && url.pathname === "/health") {
@@ -55,7 +57,10 @@ const handleRoutes = async (
 					id,
 					object: "model",
 					created: 0,
-					owned_by: "codex-oauth",
+					owned_by:
+						claude && isClaudeModel(id)
+							? "anthropic-subscription"
+							: "codex-oauth",
 				})),
 			})
 		} catch (error) {
@@ -72,7 +77,12 @@ const handleRoutes = async (
 	}
 
 	if (request.method === "POST" && url.pathname === "/v1/chat/completions") {
-		return handleChatCompletionsRequest(request, provider, requestLogger)
+		return handleChatCompletionsRequest(
+			request,
+			provider,
+			requestLogger,
+			claude,
+		)
 	}
 
 	if (request.method === "POST" && url.pathname === "/v1/images/generations") {
@@ -95,7 +105,13 @@ const createOpenAIOAuthRuntime = (settings: OpenAIOAuthServerOptions = {}) => {
 	}
 	const client = createOpenAIOAuthTransport(sharedSettings)
 	const provider = createOpenAIOAuth(client)
-	const resolveModels = createModelResolver(client, settings.models)
+	const resolveOpenAIModels = createModelResolver(client, settings.models)
+	const resolveModels = async () => [
+		...new Set([
+			...(await resolveOpenAIModels()),
+			...(settings.claude ? CLAUDE_MODELS : []),
+		]),
+	]
 	const requestLogger = createRequestLogger(settings)
 
 	const handler = async (request: Request): Promise<Response> => {
@@ -106,6 +122,7 @@ const createOpenAIOAuthRuntime = (settings: OpenAIOAuthServerOptions = {}) => {
 				client,
 				resolveModels,
 				requestLogger,
+				settings.claude === true,
 			)
 		} catch (error) {
 			return toErrorResponse(
@@ -129,6 +146,16 @@ export const startOpenAIOAuthServer = async (
 ): Promise<RunningOpenAIOAuthServer> => {
 	const host = settings.host ?? DEFAULT_HOST
 	const port = settings.port ?? DEFAULT_PORT
+	if (
+		settings.claude &&
+		host !== "127.0.0.1" &&
+		host !== "localhost" &&
+		host !== "::1"
+	) {
+		throw new Error(
+			"Claude subscription access may only bind to a loopback host.",
+		)
+	}
 	const runtime = createOpenAIOAuthRuntime(settings)
 	const models = await runtime.resolveModels()
 	const handler = runtime.handler

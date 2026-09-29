@@ -6,6 +6,7 @@ import {
 	toToolChoice,
 } from "./chat-messages.js"
 import { streamChatCompletions } from "./chat-stream.js"
+import { handleClaudeChatCompletionsRequest, isClaudeModel } from "./claude.js"
 import { emitRequestLog } from "./logging.js"
 import {
 	isRecord,
@@ -62,6 +63,7 @@ export const handleChatCompletionsRequest = async (
 	request: Request,
 	provider: OpenAIOAuthProvider,
 	logger: ((event: OpenAIOAuthServerLogEvent) => void) | undefined,
+	claude = false,
 ): Promise<Response> => {
 	const requestId = crypto.randomUUID()
 	const startedAt = Date.now()
@@ -84,6 +86,14 @@ export const handleChatCompletionsRequest = async (
 		path: "/v1/chat/completions",
 		...summarizeChatRequest(body),
 	})
+
+	if (claude && isClaudeModel(body.model)) {
+		return handleClaudeChatCompletionsRequest(body, request.signal, {
+			logger,
+			requestId,
+			startedAt,
+		})
+	}
 
 	if (body.stream === true) {
 		return streamChatCompletions(body, provider, {

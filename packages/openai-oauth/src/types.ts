@@ -26,6 +26,7 @@ export type ChatToolDefinition = {
 		name?: string
 		description?: string
 		parameters?: JsonObject
+		strict?: boolean
 	}
 }
 
@@ -122,6 +123,7 @@ export type OpenAIOAuthServerOptions = LocalOpenAIOAuthOptions & {
 	host?: string
 	port?: number
 	models?: string[]
+	claude?: boolean
 	codexVersion?: string
 	requestLogger?: (event: OpenAIOAuthServerLogEvent) => void
 }

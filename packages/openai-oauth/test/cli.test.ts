@@ -101,6 +101,7 @@ describe("openai oauth cli", () => {
 			"9999",
 			"--models",
 			"gpt-5.4,gpt-5.3-codex",
+			"--claude",
 			"--codex-version",
 			"0.114.0",
 			"--base-url",
@@ -117,6 +118,7 @@ describe("openai oauth cli", () => {
 			host: "0.0.0.0",
 			port: 9999,
 			models: ["gpt-5.4", "gpt-5.3-codex"],
+			claude: true,
 			codexVersion: "0.114.0",
 			baseURL: "https://example.com/codex",
 			clientId: "client-123",
@@ -148,6 +150,14 @@ describe("openai oauth cli", () => {
 		})
 		expect(loginOptions).not.toHaveProperty("host")
 		expect(loginOptions).not.toHaveProperty("port")
+	})
+
+	test("parses Claude subscription login", () => {
+		expect(parseCliArgs(["login", "--claude"])).toMatchObject({
+			command: "login",
+			claude: true,
+		})
+		expect(toHelpMessage()).toContain("login [--claude]")
 	})
 
 	test("parses detached serve flags", () => {
@@ -205,6 +215,7 @@ describe("openai oauth cli", () => {
 		expect(help).toContain("npx openai-oauth@latest stop")
 		expect(help).toContain("-d, --detach")
 		expect(help).toContain("-f, --follow")
+		expect(help).toContain("--claude")
 	})
 
 	test("does not reuse server host and port for automatic login", () => {

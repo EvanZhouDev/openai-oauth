@@ -6,6 +6,7 @@ import {
 } from "@openai-oauth/local/auth-file"
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
+import { runClaudeLogin } from "./claude-login.js"
 import {
 	cliMessages,
 	installCliWarningLogger,
@@ -38,6 +39,7 @@ export type CliArgs = {
 	host?: string
 	port?: number
 	models?: string[]
+	claude?: boolean
 	codexVersion?: string
 	baseURL?: string
 	clientId?: string
@@ -82,12 +84,13 @@ const helpLines = [
 	`  ${cliCommand} status`,
 	`  ${cliCommand} logs [--follow]`,
 	`  ${cliCommand} stop`,
-	`  ${cliCommand} login [options]`,
+	`  ${cliCommand} login [--claude] [options]`,
 	"",
 	"Options",
 	"  --host <host>              Proxy host. Login callback always listens on loopback.",
 	"  --port <port>              Proxy port. Default: 10531.",
 	"  --models <ids>             Comma-separated model ids to expose from /v1/models.",
+	"  --claude                   Add Claude models, or sign in with `login --claude`.",
 	"  --codex-version <version>  Override the Codex client version used for model discovery.",
 	"  --base-url <url>           Override the upstream Codex base URL.",
 	"  --oauth-client-id <id>     Override the OAuth client id used for refresh.",
@@ -125,6 +128,11 @@ const createCliParser = (argv: string[]) =>
 			type: "string",
 			describe: "Comma-separated model ids to expose from /v1/models.",
 			coerce: parseModels,
+		})
+		.option("claude", {
+			type: "boolean",
+			default: false,
+			describe: "Add Claude models using your local Claude subscription.",
 		})
 		.option("codex-version", {
 			type: "string",
@@ -209,6 +217,7 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 		host: parsed.host,
 		port: parsed.port,
 		models: parsed.models,
+		claude: parsed.claude,
 		codexVersion: parsed.codexVersion,
 		baseURL: parsed.baseUrl,
 		clientId: parsed.oauthClientId,
@@ -226,6 +235,7 @@ export const toServerOptions = (args: CliArgs) => ({
 	host: args.host,
 	port: args.port ?? DEFAULT_PORT,
 	models: args.models,
+	claude: args.claude,
 	codexVersion: args.codexVersion,
 	baseURL: args.baseURL,
 	clientId: args.clientId,
@@ -655,6 +665,10 @@ export const runCli = async (argv: string[] = hideBin(process.argv)) => {
 	if (args.command === "login") {
 		const updateCheck = runUpdateCheck()
 		await updateCheck
+		if (args.claude) {
+			await runClaudeLogin()
+			return
+		}
 		const loginOptions = toLoginOptions(args)
 		const existingAuthFile = await findExistingCodexAuthFile(
 			loginOptions.authFilePath,
