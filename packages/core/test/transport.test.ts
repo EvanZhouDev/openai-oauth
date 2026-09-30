@@ -5,7 +5,10 @@ import {
 	normalizeCodexResponsesBody,
 	type OpenAIOAuthTransportOptions,
 } from "../src/runtime.js"
-import { collectCompletedResponseFromSse } from "../src/sse.js"
+import {
+	collectCompletedResponseFromSse,
+	observeServerSentEventIds,
+} from "../src/sse.js"
 
 const createCodexOAuthFetch = (options: OpenAIOAuthTransportOptions) =>
 	createRuntimeOpenAIOAuthTransport(options).fetch
@@ -438,6 +441,119 @@ describe("createCodexOAuthFetch", () => {
 		])
 	})
 
+	test("an unrelated pending stream does not block a cached continuation", async () => {
+		let requestCount = 0
+		let closeSlowStream: (() => void) | undefined
+		const fetch = createMockFetch(async () => {
+			requestCount += 1
+			if (requestCount === 1) {
+				return new Response(
+					[
+						"event: response.completed",
+						'data: {"response":{"id":"resp_ready","status":"completed","output":[]}}',
+						"",
+						"",
+					].join("\n"),
+					{ headers: { "Content-Type": "text/event-stream" } },
+				)
+			}
+			if (requestCount === 2) {
+				return new Response(
+					new ReadableStream<Uint8Array>({
+						start(controller) {
+							controller.enqueue(
+								new TextEncoder().encode(
+									[
+										"event: response.created",
+										'data: {"response":{"id":"resp_slow","status":"in_progress"}}',
+										"",
+										"",
+									].join("\n"),
+								),
+							)
+							closeSlowStream = () => controller.close()
+						},
+					}),
+					{ headers: { "Content-Type": "text/event-stream" } },
+				)
+			}
+			return new Response(
+				[
+					"event: response.completed",
+					'data: {"response":{"id":"resp_next","status":"completed","output":[]}}',
+					"",
+					"",
+				].join("\n"),
+				{ headers: { "Content-Type": "text/event-stream" } },
+			)
+		})
+		const connection = createRuntimeOpenAIOAuthTransport({
+			auth: session,
+			fetch,
+		})
+		const request = (input: Record<string, unknown>) =>
+			connection.request("/responses", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ model: "gpt-5.4-mini", stream: true, ...input }),
+			})
+
+		const ready = await request({ input: [{ role: "user", content: "Ready" }] })
+		await ready.text()
+		await request({ input: [{ role: "user", content: "Slow" }] })
+		const continued = await request({
+			previous_response_id: "resp_ready",
+			input: [{ role: "user", content: "Continue" }],
+		})
+
+		expect(continued.status).toBe(200)
+		expect(upstreamCalls(fetch)).toHaveLength(3)
+		closeSlowStream?.()
+	})
+
+	test("returns a streamed error that has no response ID", async () => {
+		const fetch = createMockFetch(
+			async () =>
+				new Response(
+					new ReadableStream<Uint8Array>({
+						start(controller) {
+							controller.enqueue(
+								new TextEncoder().encode(
+									[
+										'data: {"type":"error","error":{"message":"failed"}}',
+										"",
+										"",
+									].join("\n"),
+								),
+							)
+						},
+					}),
+					{ headers: { "Content-Type": "text/event-stream" } },
+				),
+		)
+		const connection = createRuntimeOpenAIOAuthTransport({
+			auth: session,
+			fetch,
+		})
+
+		const response = await connection.request("/responses", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				model: "gpt-5.4-mini",
+				input: [],
+				stream: true,
+			}),
+		})
+		const reader = response.body?.getReader()
+		const firstChunk = await reader?.read()
+
+		expect(new TextDecoder().decode(firstChunk?.value)).toContain(
+			'"type":"error"',
+		)
+		await reader?.cancel()
+	})
+
 	test("accepts an async session supplier", async () => {
 		const fetch = createMockFetch()
 		const getSession = vi.fn(async () => session)
@@ -552,6 +668,57 @@ describe("createCodexOAuthFetch", () => {
 	})
 })
 
+describe("observeServerSentEventIds", () => {
+	test("observes an item ID before exposing its completed SSE block", async () => {
+		const itemIds: string[] = []
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(
+					new TextEncoder().encode(
+						'event: response.output_item.done\ndata: {"item":{"id":"item_1"',
+					),
+				)
+				controller.enqueue(new TextEncoder().encode(',"type":"message"}}\n\n'))
+				controller.close()
+			},
+		})
+		const observed = observeServerSentEventIds(stream, {
+			onItemId: (id) => itemIds.push(id),
+		})
+		const reader = observed.getReader()
+
+		await reader.read()
+		expect(itemIds).toEqual([])
+		await reader.read()
+		expect(itemIds).toEqual(["item_1"])
+	})
+
+	test("observes item IDs nested in a terminal response before exposing it", async () => {
+		const itemIds: string[] = []
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(
+					new TextEncoder().encode(
+						[
+							"event: response.completed",
+							'data: {"response":{"id":"resp_1","status":"completed","output":[{"id":"msg_1","type":"message"}]}}',
+							"",
+							"",
+						].join("\n"),
+					),
+				)
+				controller.close()
+			},
+		})
+		const observed = observeServerSentEventIds(stream, {
+			onItemId: (id) => itemIds.push(id),
+		})
+
+		await observed.getReader().read()
+		expect(itemIds).toEqual(["msg_1"])
+	})
+})
+
 describe("collectCompletedResponseFromSse", () => {
 	test("returns the completed response object", async () => {
 		const stream = new ReadableStream<Uint8Array>({
@@ -600,6 +767,105 @@ describe("collectCompletedResponseFromSse", () => {
 			status: "completed",
 			output: [{ type: "message" }],
 		})
+	})
+
+	test("rejects a named terminal error even when the stream stays open", async () => {
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(
+					new TextEncoder().encode(
+						[
+							"event: error",
+							'data: {"type":"error","error":{"message":"failed"}}',
+							"",
+							"",
+						].join("\n"),
+					),
+				)
+			},
+		})
+
+		await expect(collectCompletedResponseFromSse(stream)).rejects.toThrow(
+			"Response stream failed",
+		)
+	})
+
+	test("rejects after a data-only terminal error when the stream stays open", async () => {
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(
+					new TextEncoder().encode(
+						[
+							'data: {"type":"error","error":{"message":"failed"}}',
+							"",
+							"",
+						].join("\n"),
+					),
+				)
+			},
+		})
+
+		await expect(collectCompletedResponseFromSse(stream)).rejects.toThrow(
+			"Response stream failed",
+		)
+	})
+
+	test("rejects an error after a response was created", async () => {
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(
+					new TextEncoder().encode(
+						[
+							"event: response.created",
+							'data: {"response":{"id":"resp_1","status":"in_progress"}}',
+							"",
+							'data: {"type":"error","error":{"message":"failed"}}',
+							"",
+							"",
+						].join("\n"),
+					),
+				)
+			},
+		})
+
+		await expect(collectCompletedResponseFromSse(stream)).rejects.toThrow(
+			"Response stream failed",
+		)
+	})
+
+	test("rejects after a done sentinel when the stream stays open", async () => {
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode("data: [DONE]\n\n"))
+			},
+		})
+
+		await expect(collectCompletedResponseFromSse(stream)).rejects.toThrow(
+			"Response stream ended without a response",
+		)
+	})
+
+	test("does not treat an in-progress response as completed after done", async () => {
+		const stream = new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(
+					new TextEncoder().encode(
+						[
+							"event: response.created",
+							'data: {"response":{"id":"resp_1","status":"in_progress"}}',
+							"",
+							"data: [DONE]",
+							"",
+							"",
+						].join("\n"),
+					),
+				)
+			},
+		})
+
+		await expect(collectCompletedResponseFromSse(stream)).rejects.toThrow(
+			"Response stream ended without a response",
+		)
 	})
 
 	test("fills completed response output from streamed output item events", async () => {

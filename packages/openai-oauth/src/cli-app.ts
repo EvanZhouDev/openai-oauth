@@ -1,6 +1,10 @@
 import { access } from "node:fs/promises"
 import { createInterface } from "node:readline/promises"
 import {
+	DEFAULT_CODEX_RESPONSES_MAX_ITEMS,
+	DEFAULT_CODEX_RESPONSES_MAX_RESPONSES,
+} from "@openai-oauth/core"
+import {
 	resolveAuthFileCandidates,
 	resolveCodexAuthFilePath,
 } from "@openai-oauth/local/auth-file"
@@ -45,6 +49,9 @@ export type CliArgs = {
 	authFilePath?: string
 	openBrowser?: boolean
 	loginTimeoutMs?: number
+	responsesState: "stateless" | "memory"
+	responsesMaxItems: number
+	responsesMaxResponses: number
 	detach?: boolean
 	follow?: boolean
 	internalDetachedChild?: boolean
@@ -73,6 +80,13 @@ const parseModels = (value: string | undefined): string[] | undefined => {
 	return models.length > 0 ? models : undefined
 }
 
+const parsePositiveInteger = (value: number): number => {
+	if (!Number.isSafeInteger(value) || value < 1) {
+		throw new Error("Value must be a positive integer.")
+	}
+	return value
+}
+
 const helpLines = [
 	"Free OpenAI API access with your ChatGPT account.",
 	"",
@@ -95,6 +109,10 @@ const helpLines = [
 	"  --oauth-file <path>        Path to the local auth.json file.",
 	"  --no-open                  Print the login URL without opening a browser.",
 	"  --login-timeout-ms <ms>    Login timeout. Default: 300000",
+	"  --responses-state <mode>   Choose whether clients can continue conversations by saved response or item ID.",
+	"                               memory stores response inputs and outputs in shared history chains until the server stops; stateless rejects continuation IDs. Default: stateless.",
+	`  --responses-max-responses <count>  Maximum saved response lookup IDs in memory mode. Default: ${DEFAULT_CODEX_RESPONSES_MAX_RESPONSES}.`,
+	`  --responses-max-items <count>      Maximum saved response items in memory mode. Default: ${DEFAULT_CODEX_RESPONSES_MAX_ITEMS}.`,
 	"",
 	"Flags",
 	"  -d, --detach               Run in the background",
@@ -154,6 +172,25 @@ const createCliParser = (argv: string[]) =>
 		.option("login-timeout-ms", {
 			type: "number",
 			describe: "Login timeout in milliseconds. Default: 300000",
+		})
+		.option("responses-state", {
+			type: "string",
+			choices: ["stateless", "memory"] as const,
+			default: "stateless" as const,
+			describe:
+				"Choose whether clients can continue conversations by saved response or item ID. Memory stores response inputs and outputs in shared history chains until the server stops; stateless rejects continuation IDs.",
+		})
+		.option("responses-max-responses", {
+			type: "number",
+			default: DEFAULT_CODEX_RESPONSES_MAX_RESPONSES,
+			coerce: parsePositiveInteger,
+			describe: "Maximum saved response lookup IDs retained in memory mode.",
+		})
+		.option("responses-max-items", {
+			type: "number",
+			default: DEFAULT_CODEX_RESPONSES_MAX_ITEMS,
+			coerce: parsePositiveInteger,
+			describe: "Maximum saved response items retained in memory mode.",
 		})
 		.option("detach", {
 			alias: "d",
@@ -216,6 +253,9 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 		authFilePath: parsed.oauthFile,
 		openBrowser: parsed.open,
 		loginTimeoutMs: parsed.loginTimeoutMs,
+		responsesState: parsed.responsesState,
+		responsesMaxResponses: parsed.responsesMaxResponses,
+		responsesMaxItems: parsed.responsesMaxItems,
 		detach: parsed.detach,
 		follow: parsed.follow,
 		internalDetachedChild: parsed.internalDetachedChild,
@@ -231,6 +271,9 @@ export const toServerOptions = (args: CliArgs) => ({
 	clientId: args.clientId,
 	tokenUrl: args.tokenUrl,
 	authFilePath: args.authFilePath,
+	responsesState: args.responsesState,
+	responsesMaxResponses: args.responsesMaxResponses,
+	responsesMaxItems: args.responsesMaxItems,
 })
 
 export const toLoginOptions = (args: CliArgs) => ({

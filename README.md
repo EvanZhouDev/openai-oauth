@@ -249,6 +249,24 @@ The CLI also supports a few configuration options that generally do not need to 
       <td>Override where the local OAuth auth file is discovered.</td>
     </tr>
     <tr>
+      <td>Responses continuation</td>
+      <td><code>--responses-state</code></td>
+      <td><code>stateless</code></td>
+      <td>Use <code>memory</code> to support <code>previous_response_id</code> and <code>item_reference</code> with process-local state.</td>
+    </tr>
+    <tr>
+      <td>Saved response lookup limit</td>
+      <td><code>--responses-max-responses</code></td>
+      <td><code>256</code></td>
+      <td>Maximum saved response lookup IDs retained in memory mode.</td>
+    </tr>
+    <tr>
+      <td>Saved response-item limit</td>
+      <td><code>--responses-max-items</code></td>
+      <td><code>2000</code></td>
+      <td>Maximum saved response items retained in memory mode.</td>
+    </tr>
+    <tr>
       <td>Open browser</td>
       <td><code>--open</code> / <code>--no-open</code></td>
       <td><code>--open</code></td>
@@ -272,6 +290,14 @@ The `openai-oauth` SDK allows you to integrate ChatGPT login into your local app
   <source srcset="/assets/package-structure.webp" type="image/webp">
   <img src="/assets/package-structure.png" alt="OpenAI OAuth package structure">
 </picture>
+
+The CLI server remains stateless by default. Clients that continue Responses conversations with <code>previous_response_id</code> or <code>item_reference</code> can opt in with:
+
+```bash
+npx openai-oauth --responses-state memory
+```
+
+Memory mode stores response inputs and outputs as shared history chains, plus saved response items, in the server process. It defaults to 256 response lookup IDs and 2,000 items; use <code>--responses-max-responses</code> and <code>--responses-max-items</code> to change those entry-count limits. The limits do not cap bytes, and retained descendants keep their shared ancestors reachable. The cache is discarded when the process exits, so clients must begin a new conversation after a restart. The server expands references into full history before sending the request upstream; repeated prompt prefixes can still be eligible for upstream prompt caching.
 
 The SDK is primarily built around two concepts:
 
@@ -587,7 +613,7 @@ function CustomLogin() {
 What is intentionally not there yet:
 
 - Only models supported by Codex are available. This list updates over time and depends on your ChatGPT plan.
-- There is no stateful replay support on the CLI `/v1/responses` endpoint. The proxy is stateless and expects callers to send the full conversation history.
+- Responses continuation state is memory-only and does not survive CLI server restarts. The default remains stateless.
 - Hosted browser sign-in currently supports Chrome and Firefox. Safari is not yet supported.
 
 ## How it Works

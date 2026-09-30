@@ -7,6 +7,11 @@ export type ServerSentEvent = {
 	data?: string
 }
 
+export type CompletedResponseObserver = {
+	onItemId?: (id: string) => void
+	onResponseId?: (id: string) => void
+}
+
 const parseEventBlock = (block: string): ServerSentEvent => {
 	const event: ServerSentEvent = {}
 	const dataLines: string[] = []
@@ -67,6 +72,69 @@ export async function* iterateServerSentEvents(
 	}
 }
 
+const observeEventIds = (
+	event: ServerSentEvent,
+	observer: CompletedResponseObserver,
+): void => {
+	if (typeof event.data !== "string") {
+		return
+	}
+
+	try {
+		const parsed = JSON.parse(event.data)
+		if (!isRecord(parsed)) {
+			return
+		}
+
+		const item = parsed.item
+		if (isRecord(item) && typeof item.id === "string") {
+			observer.onItemId?.(item.id)
+		}
+
+		const response = parsed.response
+		if (isRecord(response) && typeof response.id === "string") {
+			observer.onResponseId?.(response.id)
+		}
+		if (isRecord(response) && Array.isArray(response.output)) {
+			for (const output of response.output) {
+				if (isRecord(output) && typeof output.id === "string") {
+					observer.onItemId?.(output.id)
+				}
+			}
+		}
+	} catch {}
+}
+
+export const observeServerSentEventIds = (
+	stream: ReadableStream<Uint8Array>,
+	observer: CompletedResponseObserver,
+): ReadableStream<Uint8Array> => {
+	const decoder = new TextDecoder()
+	let buffer = ""
+
+	return stream.pipeThrough(
+		new TransformStream<Uint8Array, Uint8Array>({
+			transform(chunk, controller) {
+				buffer += decoder.decode(chunk, { stream: true })
+				const blocks = buffer.split(SSE_SEPARATOR)
+				buffer = blocks.pop() ?? ""
+				for (const block of blocks) {
+					if (block.trim().length > 0) {
+						observeEventIds(parseEventBlock(block), observer)
+					}
+				}
+				controller.enqueue(chunk)
+			},
+			flush() {
+				buffer += decoder.decode()
+				if (buffer.trim().length > 0) {
+					observeEventIds(parseEventBlock(buffer), observer)
+				}
+			},
+		}),
+	)
+}
+
 const terminalServerSentEvents = new Set([
 	"error",
 	"response.completed",
@@ -83,6 +151,13 @@ const terminalResponseStatuses = new Set([
 	"canceled",
 	"incomplete",
 ])
+
+const isTerminalResponse = (
+	response: Record<string, unknown> | undefined,
+): response is Record<string, unknown> =>
+	response != null &&
+	typeof response.status === "string" &&
+	terminalResponseStatuses.has(response.status)
 
 const isTerminalPayload = (data: string): boolean => {
 	if (data === "[DONE]") {
@@ -151,35 +226,40 @@ export const collectCompletedResponseFromSse = async (
 		try {
 			const parsed = JSON.parse(event.data)
 			if (!isRecord(parsed)) {
-				continue
-			}
-
-			if (event.event === "error") {
+				// Terminal handling below must still run for non-object payloads.
+			} else if (event.event === "error" || parsed.type === "error") {
 				latestError = parsed
-				continue
-			}
+			} else {
+				const item = parsed.item
+				if (isRecord(item) && typeof item.id === "string") {
+					outputItems.set(item.id, item)
+				}
 
-			const item = parsed.item
-			if (isRecord(item) && typeof item.id === "string") {
-				outputItems.set(item.id, item)
-			}
-
-			const response = parsed.response
-			if (isRecord(response)) {
-				latestResponse = response
-			}
-
-			if (terminal && latestResponse) {
-				return withCollectedOutput(latestResponse)
+				const response = parsed.response
+				if (isRecord(response)) {
+					latestResponse = response
+				}
 			}
 		} catch {}
 
-		if (terminal && latestResponse) {
-			return withCollectedOutput(latestResponse)
+		if (terminal) {
+			if (latestError) {
+				throw new Error(
+					`Response stream failed: ${JSON.stringify(latestError)}`,
+				)
+			}
+			if (isTerminalResponse(latestResponse)) {
+				return withCollectedOutput(latestResponse)
+			}
+			throw new Error("Response stream ended without a response")
 		}
 	}
 
-	if (latestResponse) {
+	if (latestError) {
+		throw new Error(`Response stream failed: ${JSON.stringify(latestError)}`)
+	}
+
+	if (isTerminalResponse(latestResponse)) {
 		return withCollectedOutput(latestResponse)
 	}
 

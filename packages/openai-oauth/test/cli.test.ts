@@ -111,6 +111,12 @@ describe("openai oauth cli", () => {
 			"https://auth.example.com/oauth/token",
 			"--oauth-file",
 			"/tmp/auth.json",
+			"--responses-state",
+			"memory",
+			"--responses-max-responses",
+			"32",
+			"--responses-max-items",
+			"400",
 		])
 
 		expect(toServerOptions(parsed)).toMatchObject({
@@ -122,7 +128,25 @@ describe("openai oauth cli", () => {
 			clientId: "client-123",
 			tokenUrl: "https://auth.example.com/oauth/token",
 			authFilePath: "/tmp/auth.json",
+			responsesState: "memory",
+			responsesMaxResponses: 32,
+			responsesMaxItems: 400,
 		})
+	})
+
+	test("defaults responses continuation state to stateless", () => {
+		const parsed = parseCliArgs([])
+
+		expect(parsed.responsesState).toBe("stateless")
+		expect(toServerOptions(parsed).responsesState).toBe("stateless")
+		expect(toServerOptions(parsed).responsesMaxResponses).toBe(256)
+		expect(toServerOptions(parsed).responsesMaxItems).toBe(2_000)
+	})
+
+	test("rejects invalid responses continuation options", () => {
+		expect(() => parseCliArgs(["--responses-state", "persistent"])).toThrow()
+		expect(() => parseCliArgs(["--responses-max-responses", "0"])).toThrow()
+		expect(() => parseCliArgs(["--responses-max-items", "1.5"])).toThrow()
 	})
 
 	test("parses login command options", () => {
@@ -205,6 +229,16 @@ describe("openai oauth cli", () => {
 		expect(help).toContain("npx openai-oauth@latest stop")
 		expect(help).toContain("-d, --detach")
 		expect(help).toContain("-f, --follow")
+		expect(help).toContain("--responses-state <mode>")
+		expect(help).toContain("--responses-max-responses <count>")
+		expect(help).toContain("--responses-max-items <count>")
+		expect(help).toContain(
+			"continue conversations by saved response or item ID",
+		)
+		expect(help).toContain(
+			"memory stores response inputs and outputs in shared history chains until the server stops",
+		)
+		expect(help).toContain("stateless rejects continuation IDs")
 	})
 
 	test("does not reuse server host and port for automatic login", () => {

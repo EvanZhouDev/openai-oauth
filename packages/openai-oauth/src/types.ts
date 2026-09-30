@@ -118,11 +118,16 @@ export type OpenAIOAuthServerLogEvent =
 			requestId: string
 	  }
 
+export type OpenAIOAuthResponsesStateMode = "stateless" | "memory"
+
 export type OpenAIOAuthServerOptions = LocalOpenAIOAuthOptions & {
 	host?: string
 	port?: number
 	models?: string[]
 	codexVersion?: string
+	responsesState?: OpenAIOAuthResponsesStateMode
+	responsesMaxItems?: number
+	responsesMaxResponses?: number
 	requestLogger?: (event: OpenAIOAuthServerLogEvent) => void
 }
 
