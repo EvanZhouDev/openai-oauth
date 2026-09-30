@@ -17,6 +17,7 @@ import {
 import { createRequestLogger } from "./logging.js"
 import { createModelResolver } from "./models.js"
 import { handleResponsesRequest } from "./responses.js"
+import { handleWebSearchRequest } from "./web-search.js"
 import {
 	DEFAULT_HOST,
 	DEFAULT_PORT,
@@ -69,6 +70,13 @@ const handleRoutes = async (
 
 	if (request.method === "POST" && url.pathname === "/v1/responses") {
 		return handleResponsesRequest(request, client)
+	}
+
+	if (
+		request.method === "POST" &&
+		(url.pathname === "/v1/alpha/search" || url.pathname === "/alpha/search")
+	) {
+		return handleWebSearchRequest(request, client)
 	}
 
 	if (request.method === "POST" && url.pathname === "/v1/chat/completions") {

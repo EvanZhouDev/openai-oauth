@@ -177,6 +177,74 @@ describe("openai oauth server", () => {
 		})
 	})
 
+	test("forwards Codex standalone web search through both compatible routes", async () => {
+		const authFilePath = await createAuthFile()
+		const requestBody = JSON.stringify({
+			id: "search-1",
+			model: "gpt-5.6-sol",
+			commands: { search_query: [{ q: "OpenAI" }] },
+		})
+		const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) =>
+			Response.json(
+				{
+					encrypted_output: "ciphertext",
+					output: "Search result",
+					results: [{ ref_id: "turn0search0" }],
+				},
+				{
+					status: 207,
+					headers: { "x-upstream-proof": "preserved" },
+				},
+			),
+		)
+		const handler = createOpenAIOAuthFetchHandler({
+			authFilePath,
+			ensureFresh: false,
+			fetch,
+		})
+
+		for (const path of ["/v1/alpha/search", "/alpha/search"]) {
+			const response = await handler(
+				new Request(`http://localhost${path}`, {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Originator: "chatgpt_cca",
+						"X-Codex-Turn-Metadata": '{"probe":true}',
+					},
+					body: requestBody,
+				}),
+			)
+
+			expect(response.status).toBe(207)
+			expect(response.headers.get("x-upstream-proof")).toBe("preserved")
+			await expect(response.json()).resolves.toEqual({
+				encrypted_output: "ciphertext",
+				output: "Search result",
+				results: [{ ref_id: "turn0search0" }],
+			})
+		}
+
+		expect(fetch).toHaveBeenCalledTimes(2)
+		for (const [input, init] of fetch.mock.calls) {
+			expect(String(input)).toBe(
+				"https://chatgpt.com/backend-api/codex/alpha/search",
+			)
+			expect(init?.method).toBe("POST")
+			expect(init?.body).toBe(requestBody)
+			const headers = new Headers(init?.headers)
+			expect(headers.get("originator")).toBe("chatgpt_cca")
+			expect(headers.get("x-codex-turn-metadata")).toBe('{"probe":true}')
+			expect(headers.get("authorization")).toBe("Bearer access-token")
+			expect(headers.get("chatgpt-account-id")).toBe("acct-1")
+		}
+
+		await fs.rm(path.dirname(authFilePath), {
+			recursive: true,
+			force: true,
+		})
+	})
+
 	test("reports the replay state mode in health", async () => {
 		const handler = createOpenAIOAuthFetchHandler()
 		const health = await handler(
