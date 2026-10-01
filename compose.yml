@@ -1,0 +1,30 @@
+services:
+  openai-oauth:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # Optional: use a proxy while building the image
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+        NO_PROXY: ${NO_PROXY:-}
+        http_proxy: ${http_proxy:-}
+        https_proxy: ${https_proxy:-}
+        no_proxy: ${no_proxy:-}
+    image: openai-oauth:local
+    ports:
+      - "${PORT:-10531}:10531"
+    environment:
+      # Outbound proxy for all requests from inside the container
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+      NO_PROXY: ${NO_PROXY:-localhost,127.0.0.1,::1}
+      http_proxy: ${http_proxy:-}
+      https_proxy: ${https_proxy:-}
+      no_proxy: ${no_proxy:-localhost,127.0.0.1,::1}
+      NODE_USE_ENV_PROXY: "1"
+      CODEX_HOME: /data/codex
+    volumes:
+      # Mount host Codex/OpenAI OAuth credentials (run `npx openai-oauth login` on the host first)
+      - ${CODEX_HOME:-${HOME}/.codex}:/data/codex:ro
+    restart: unless-stopped
