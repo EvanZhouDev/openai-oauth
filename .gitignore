@@ -6,3 +6,4 @@ apps/demo/next-env.d.ts
 .turbo
 *.tsbuildinfo
 .DS_Store
+auth-data/

@@ -1,0 +1,9 @@
+services:
+  openai-oauth:
+    build: .
+    container_name: openai-oauth-proxy
+    ports:
+      - "10531:10531"
+    volumes:
+      - ./auth-data:/root/.codex
+    restart: unless-stopped
