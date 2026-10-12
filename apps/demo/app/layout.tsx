@@ -51,7 +51,10 @@ export default function RootLayout({
 }>) {
 	return (
 		<html lang="en">
-			<body>
+			{/* Some browser extensions (e.g. ColorZilla's cz-shortcut-listen) inject
+			attributes onto <body> before hydration, which React otherwise flags as
+			a mismatch. suppressHydrationWarning is the documented workaround. */}
+			<body suppressHydrationWarning>
 				{children}
 				<Analytics />
 			</body>

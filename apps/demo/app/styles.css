@@ -674,6 +674,23 @@ code {
 	background: #2b2b2b;
 }
 
+.docsCtaActions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	justify-content: center;
+}
+
+.docsButton--ghost {
+	background: transparent;
+	border: 1px solid var(--border);
+	color: var(--text);
+}
+
+.docsButton--ghost:hover {
+	background: var(--code);
+}
+
 .installShell {
 	align-items: center;
 	display: flex;

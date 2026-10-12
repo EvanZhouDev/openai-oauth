@@ -22,6 +22,7 @@
       "dependencies": {
         "@ai-sdk/react": "3.0.118",
         "@openai-oauth/ai-sdk": "workspace:*",
+        "@openai-oauth/core": "workspace:*",
         "@openai-oauth/react": "workspace:*",
         "@vercel/analytics": "^2.0.1",
         "ai": "6.0.116",
