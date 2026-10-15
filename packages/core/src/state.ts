@@ -84,6 +84,19 @@ export class CodexResponsesState {
 		await Promise.allSettled([...this.pendingCaptures])
 	}
 
+	hasResponse(id: string): boolean {
+		return this.responses.has(id)
+	}
+
+	hasItem(id: string): boolean {
+		return this.items.has(id)
+	}
+
+	clear(): void {
+		this.items.clear()
+		this.responses.clear()
+	}
+
 	trackPendingCapture(promise: Promise<void>): void {
 		this.pendingCaptures.add(promise)
 		void promise.finally(() => {

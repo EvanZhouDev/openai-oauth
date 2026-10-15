@@ -260,6 +260,30 @@ The CLI also supports a few configuration options that generally do not need to 
       <td><code>300000</code></td>
       <td>How long the login command waits for the OAuth callback, in milliseconds.</td>
     </tr>
+    <tr>
+      <td>Verbose logging</td>
+      <td><code>-v</code> / <code>--verbose</code> / <code>--no-verbose</code></td>
+      <td>Foreground: on, Detached: off</td>
+      <td>Log detailed HTTP request info (method, route, model, streaming, replay ID, status code, duration).</td>
+    </tr>
+    <tr>
+      <td>Stateless mode</td>
+      <td><code>--stateless</code></td>
+      <td>Disabled (stateful caching enabled)</td>
+      <td>Disable conversation history caching on <code>/v1/responses</code> (rejects <code>previous_response_id</code>).</td>
+    </tr>
+    <tr>
+      <td>OpenRouter API key</td>
+      <td><code>--openrouter-api-key</code></td>
+      <td>None (or <code>OPENROUTER_API_KEY</code> env var)</td>
+      <td>Fallback OpenRouter API key when not supplied in request <code>Authorization</code> header for non-local models.</td>
+    </tr>
+    <tr>
+      <td>OpenRouter base URL</td>
+      <td><code>--openrouter-base-url</code></td>
+      <td><code>https://openrouter.ai/api/v1</code></td>
+      <td>Override the upstream OpenRouter base URL.</td>
+    </tr>
   </tbody>
 </table>
 </details>

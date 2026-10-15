@@ -155,4 +155,32 @@ describe("CodexResponsesState", () => {
 			},
 		])
 	})
+
+	test("checks existence of cached responses and items and supports clear", () => {
+		const state = new CodexResponsesState()
+		state.rememberResponse(
+			{
+				id: "resp_1",
+				output: [
+					{
+						id: "fc_1",
+						type: "function_call",
+						name: "weather",
+					},
+				],
+			},
+			{
+				input: [{ role: "user", content: "hi" }],
+			},
+		)
+
+		expect(state.hasResponse("resp_1")).toBe(true)
+		expect(state.hasResponse("resp_unknown")).toBe(false)
+		expect(state.hasItem("fc_1")).toBe(true)
+		expect(state.hasItem("fc_unknown")).toBe(false)
+
+		state.clear()
+		expect(state.hasResponse("resp_1")).toBe(false)
+		expect(state.hasItem("fc_1")).toBe(false)
+	})
 })

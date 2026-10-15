@@ -125,6 +125,48 @@ describe("openai oauth cli", () => {
 		})
 	})
 
+	test("parses verbose and stateless flags", () => {
+		const verboseParsed = parseCliArgs(["--verbose", "--stateless"])
+		expect(verboseParsed.verbose).toBe(true)
+		expect(verboseParsed.stateless).toBe(true)
+		expect(toServerOptions(verboseParsed)).toMatchObject({
+			verbose: true,
+			responsesState: false,
+		})
+
+		const shortVerboseParsed = parseCliArgs(["-v"])
+		expect(shortVerboseParsed.verbose).toBe(true)
+		expect(shortVerboseParsed.stateless).toBe(false)
+		expect(toServerOptions(shortVerboseParsed)).toMatchObject({
+			verbose: true,
+			responsesState: undefined,
+		})
+
+		const detachedParsed = parseCliArgs(["--detach"])
+		expect(detachedParsed.verbose).toBe(undefined)
+		expect(detachedParsed.stateless).toBe(false)
+
+		const detachedVerboseParsed = parseCliArgs(["--detach", "--verbose"])
+		expect(detachedVerboseParsed.verbose).toBe(true)
+	})
+
+	test("parses openrouter fallback flags", () => {
+		const parsed = parseCliArgs([
+			"--openrouter-api-key",
+			"sk-or-v1-testkey",
+			"--openrouter-base-url",
+			"https://custom-router.example.com/api/v1",
+		])
+		expect(parsed.openrouterApiKey).toBe("sk-or-v1-testkey")
+		expect(parsed.openrouterBaseUrl).toBe(
+			"https://custom-router.example.com/api/v1",
+		)
+		expect(toServerOptions(parsed)).toMatchObject({
+			openrouterApiKey: "sk-or-v1-testkey",
+			openrouterBaseUrl: "https://custom-router.example.com/api/v1",
+		})
+	})
+
 	test("parses login command options", () => {
 		const parsed = parseCliArgs([
 			"login",

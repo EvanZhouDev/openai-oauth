@@ -5,8 +5,10 @@ import {
 	type OpenAIOAuthProvider,
 } from "@openai-oauth/ai-sdk"
 import {
+	CodexResponsesState,
 	createOpenAIOAuthTransport,
 	type OpenAIOAuthTransport,
+	type OpenAIOAuthTransportOptions,
 } from "@openai-oauth/core"
 import { openaiCredentials } from "@openai-oauth/local"
 import { handleChatCompletionsRequest } from "./chat-completions.js"
@@ -14,8 +16,21 @@ import {
 	handleImageEditRequest,
 	handleImageGenerationRequest,
 } from "./images.js"
-import { createRequestLogger } from "./logging.js"
+import {
+	createHttpAccessLogger,
+	createRequestLogger,
+	extractRequestMeta,
+	type HttpRequestMeta,
+} from "./logging.js"
 import { createModelResolver } from "./models.js"
+import {
+	forwardToOpenRouter,
+	isExternalProviderModel,
+	matchModelRoute,
+	type OpenRouterSettings,
+	resolveOpenRouterApiKey,
+} from "./openrouter.js"
+import { injectUsageCost } from "./pricing.js"
 import { handleResponsesRequest } from "./responses.js"
 import {
 	DEFAULT_HOST,
@@ -31,18 +46,41 @@ import type {
 	RunningOpenAIOAuthServer,
 } from "./types.js"
 
+const rewriteRequestBodyModel = async (
+	request: Request,
+	effectiveModel: string,
+): Promise<Request> => {
+	try {
+		const clone = request.clone()
+		const body = (await clone.json()) as Record<string, unknown> | null
+		if (body && typeof body === "object" && body.model !== effectiveModel) {
+			body.model = effectiveModel
+			const headers = new Headers(request.headers)
+			return new Request(request.url, {
+				method: request.method,
+				headers,
+				body: JSON.stringify(body),
+			})
+		}
+	} catch {}
+	return request
+}
+
 const handleRoutes = async (
 	request: Request,
 	provider: OpenAIOAuthProvider,
 	client: OpenAIOAuthTransport,
 	resolveModels: () => Promise<string[]>,
 	requestLogger: ReturnType<typeof createRequestLogger>,
+	responsesState: CodexResponsesState | false,
+	openrouterSettings?: OpenRouterSettings,
+	requestMeta?: HttpRequestMeta,
 ): Promise<Response> => {
 	const url = new URL(request.url)
 	if (request.method === "GET" && url.pathname === "/health") {
 		return toJsonResponse({
 			ok: true,
-			replay_state: "stateless",
+			replay_state: responsesState === false ? "stateless" : "stateful",
 		})
 	}
 
@@ -67,12 +105,95 @@ const handleRoutes = async (
 		}
 	}
 
+	const hasOpenRouterKey = Boolean(
+		resolveOpenRouterApiKey(
+			request.headers.get("authorization"),
+			openrouterSettings?.openrouterApiKey,
+		),
+	)
+
 	if (request.method === "POST" && url.pathname === "/v1/responses") {
-		return handleResponsesRequest(request, client)
+		let isLocal = true
+		let effectiveModel = requestMeta?.model ?? "gpt-5.2"
+
+		if (isExternalProviderModel(requestMeta?.model)) {
+			isLocal = false
+		} else if (hasOpenRouterKey) {
+			const availableModels = await resolveModels().catch(() => [])
+			const routeMatch = matchModelRoute(
+				requestMeta?.model,
+				availableModels,
+				hasOpenRouterKey,
+			)
+			isLocal = routeMatch.isLocal
+			effectiveModel = routeMatch.effectiveModel
+		} else if (requestMeta?.model?.startsWith("openai/")) {
+			effectiveModel = requestMeta.model.slice(7)
+		}
+
+		if (!isLocal) {
+			if (requestMeta) requestMeta.target = "openrouter"
+			const res = await forwardToOpenRouter(request, openrouterSettings)
+			const { response: resWithCost } = await injectUsageCost(
+				res,
+				requestMeta?.model ?? effectiveModel,
+			)
+			return resWithCost
+		}
+
+		const effectiveRequest = await rewriteRequestBodyModel(
+			request,
+			effectiveModel,
+		)
+		const res = await handleResponsesRequest(
+			effectiveRequest,
+			client,
+			responsesState,
+		)
+		const { response: resWithCost } = await injectUsageCost(res, effectiveModel)
+		return resWithCost
 	}
 
 	if (request.method === "POST" && url.pathname === "/v1/chat/completions") {
-		return handleChatCompletionsRequest(request, provider, requestLogger)
+		let isLocal = true
+		let effectiveModel = requestMeta?.model ?? "gpt-5.2"
+
+		if (isExternalProviderModel(requestMeta?.model)) {
+			isLocal = false
+		} else if (hasOpenRouterKey) {
+			const availableModels = await resolveModels().catch(() => [])
+			const routeMatch = matchModelRoute(
+				requestMeta?.model,
+				availableModels,
+				hasOpenRouterKey,
+			)
+			isLocal = routeMatch.isLocal
+			effectiveModel = routeMatch.effectiveModel
+		} else if (requestMeta?.model?.startsWith("openai/")) {
+			effectiveModel = requestMeta.model.slice(7)
+		}
+
+		if (!isLocal) {
+			if (requestMeta) requestMeta.target = "openrouter"
+			const res = await forwardToOpenRouter(request, openrouterSettings)
+			const { response: resWithCost } = await injectUsageCost(
+				res,
+				requestMeta?.model ?? effectiveModel,
+			)
+			return resWithCost
+		}
+
+		const effectiveRequest = await rewriteRequestBodyModel(
+			request,
+			effectiveModel,
+		)
+		const res = await handleChatCompletionsRequest(
+			effectiveRequest,
+			provider,
+			requestLogger,
+		)
+		const { response: resWithCost } = await injectUsageCost(res, effectiveModel)
+		return resWithCost
 	}
 
 	if (request.method === "POST" && url.pathname === "/v1/images/generations") {
@@ -83,36 +204,105 @@ const handleRoutes = async (
 		return handleImageEditRequest(request, client)
 	}
 
+	if (url.pathname.startsWith("/v1/")) {
+		if (requestMeta) requestMeta.target = "openrouter"
+		const res = await forwardToOpenRouter(request, openrouterSettings)
+		if (requestMeta?.model) {
+			const { response: resWithCost } = await injectUsageCost(
+				res,
+				requestMeta.model,
+			)
+			return resWithCost
+		}
+		return res
+	}
+
 	return toErrorResponse("Route not found.", 404, "not_found_error")
 }
 
 const createOpenAIOAuthRuntime = (settings: OpenAIOAuthServerOptions = {}) => {
 	const auth = openaiCredentials(settings)
-	const sharedSettings = {
+	const responsesState: CodexResponsesState | false =
+		settings.responsesState === false
+			? false
+			: settings.responsesState instanceof CodexResponsesState
+				? settings.responsesState
+				: new CodexResponsesState()
+	const sharedSettings: OpenAIOAuthTransportOptions = {
 		...settings,
 		auth: () => auth.getSession(),
-		responsesState: false as const,
+		responsesState,
 	}
 	const client = createOpenAIOAuthTransport(sharedSettings)
 	const provider = createOpenAIOAuth(client)
 	const resolveModels = createModelResolver(client, settings.models)
 	const requestLogger = createRequestLogger(settings)
+	const httpLogger = createHttpAccessLogger(settings)
 
 	const handler = async (request: Request): Promise<Response> => {
+		const startedAt = Date.now()
+		const meta = await extractRequestMeta(request)
+		const hasOpenRouterKey = Boolean(
+			resolveOpenRouterApiKey(
+				request.headers.get("authorization"),
+				settings.openrouterApiKey,
+			),
+		)
+		if (isExternalProviderModel(meta.model)) {
+			meta.target = "openrouter"
+		} else if (hasOpenRouterKey) {
+			const availableModels = await resolveModels().catch(() => [])
+			const routeMatch = matchModelRoute(
+				meta.model,
+				availableModels,
+				hasOpenRouterKey,
+			)
+			if (!routeMatch.isLocal) {
+				meta.target = "openrouter"
+			}
+		}
+		if (httpLogger) {
+			await httpLogger.logIncoming(request, meta)
+		}
 		try {
-			return await handleRoutes(
+			const response = await handleRoutes(
 				request,
 				provider,
 				client,
 				resolveModels,
 				requestLogger,
+				responsesState,
+				{
+					openrouterApiKey: settings.openrouterApiKey,
+					openrouterBaseUrl: settings.openrouterBaseUrl,
+				},
+				meta,
 			)
+			if (httpLogger) {
+				await httpLogger.logCompleted(
+					request,
+					response,
+					Date.now() - startedAt,
+					meta,
+				)
+			}
+			return response
 		} catch (error) {
-			return toErrorResponse(
+			const response = toErrorResponse(
 				error instanceof Error ? error.message : "Unexpected server error.",
 				500,
 				"server_error",
 			)
+			if (httpLogger) {
+				await httpLogger.logCompleted(
+					request,
+					response,
+					Date.now() - startedAt,
+					meta,
+					error,
+				)
+			}
+			return response
 		}
 	}
 
