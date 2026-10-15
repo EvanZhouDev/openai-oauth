@@ -1,4 +1,5 @@
 import type { Server as HttpServer } from "node:http"
+import type { CodexResponsesState } from "@openai-oauth/core"
 import type { LocalOpenAIOAuthOptions } from "@openai-oauth/local"
 
 export type JsonValue =
@@ -123,7 +124,12 @@ export type OpenAIOAuthServerOptions = LocalOpenAIOAuthOptions & {
 	port?: number
 	models?: string[]
 	codexVersion?: string
+	responsesState?: CodexResponsesState | boolean
+	verbose?: boolean
+	logWriter?: (message: string) => void
 	requestLogger?: (event: OpenAIOAuthServerLogEvent) => void
+	openrouterApiKey?: string
+	openrouterBaseUrl?: string
 }
 
 export type RunningOpenAIOAuthServer = {

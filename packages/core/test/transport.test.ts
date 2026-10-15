@@ -71,6 +71,43 @@ describe("normalizeCodexResponsesBody", () => {
 		expect("max_output_tokens" in normalized).toBe(false)
 	})
 
+	test("strips cache_control, max_tokens, and preserve_raw_usage recursively", () => {
+		const normalized = normalizeCodexResponsesBody({
+			model: "gpt-5.2",
+			cache_control: { type: "ephemeral" },
+			max_tokens: 100,
+			preserve_raw_usage: true,
+			input: [
+				{
+					role: "user",
+					cache_control: { type: "ephemeral" },
+					content: [
+						{
+							type: "input_text",
+							text: "Hello",
+							cache_control: { type: "ephemeral" },
+						},
+					],
+				},
+			],
+		})
+
+		expect("cache_control" in normalized).toBe(false)
+		expect("max_tokens" in normalized).toBe(false)
+		expect("preserve_raw_usage" in normalized).toBe(false)
+		expect(normalized.input).toEqual([
+			{
+				role: "user",
+				content: [
+					{
+						type: "input_text",
+						text: "Hello",
+					},
+				],
+			},
+		])
+	})
+
 	test("preserves caller-provided instructions and always disables storage", () => {
 		const normalized = normalizeCodexResponsesBody(
 			{
@@ -190,6 +227,7 @@ describe("createCodexOAuthFetch", () => {
 			body: JSON.stringify({
 				model: "gpt-5.2",
 				max_output_tokens: 5,
+				reasoning_effort: "high",
 			}),
 		})
 
@@ -205,6 +243,8 @@ describe("createCodexOAuthFetch", () => {
 		expect(body.store).toBe(false)
 		expect(body.stream).toBe(true)
 		expect(body.max_output_tokens).toBeUndefined()
+		expect(body.reasoning).toEqual({ effort: "high" })
+		expect(body.reasoning_effort).toBeUndefined()
 	})
 
 	test("bridges non-streaming OpenAI requests over the required SSE transport", async () => {

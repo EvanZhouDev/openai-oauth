@@ -23,7 +23,7 @@ describe("node server runtime", () => {
 		expect(response.ok).toBe(true)
 		await expect(response.json()).resolves.toEqual({
 			ok: true,
-			replay_state: "stateless",
+			replay_state: "stateful",
 		})
 	})
 })

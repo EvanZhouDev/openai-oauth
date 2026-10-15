@@ -8,6 +8,8 @@ import { collectCompletedResponseFromSse } from "./sse.js"
 import { CodexResponsesState } from "./state.js"
 import { isRecord } from "./utils.js"
 
+export { CodexResponsesState } from "./state.js"
+
 export const DEFAULT_CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex"
 export const DEFAULT_OPENAI_COMPATIBLE_BASE_URL =
 	"https://openai-oauth.local/v1"
@@ -116,7 +118,7 @@ export type OpenAIOAuthTransportOptions = Omit<
 	"responsesState"
 > & {
 	openAIBaseURL?: string
-	responsesState?: false
+	responsesState?: CodexResponsesState | false
 }
 
 export type OpenAIOAuthTransport = {
@@ -581,27 +583,29 @@ const applyModelDefaults = (
 	normalized: Record<string, unknown>,
 	modelInfo: CodexModelInfo | undefined,
 ): void => {
-	if (!modelInfo) {
-		return
-	}
-
 	const reasoning = isRecord(normalized.reasoning)
 		? { ...normalized.reasoning }
 		: {}
 	if (
 		reasoning.effort === undefined &&
-		modelInfo.defaultReasoningLevel !== undefined
+		typeof normalized.reasoning_effort === "string"
+	) {
+		reasoning.effort = normalized.reasoning_effort
+		delete normalized.reasoning_effort
+	} else if (
+		reasoning.effort === undefined &&
+		modelInfo?.defaultReasoningLevel !== undefined
 	) {
 		reasoning.effort = modelInfo.defaultReasoningLevel
 	}
-	if (modelInfo.useResponsesLite) {
+	if (modelInfo?.useResponsesLite) {
 		reasoning.context = "all_turns"
 	}
 	if (Object.keys(reasoning).length > 0) {
 		normalized.reasoning = reasoning
 	}
 
-	if (modelInfo.supportVerbosity && modelInfo.defaultVerbosity !== undefined) {
+	if (modelInfo?.supportVerbosity && modelInfo.defaultVerbosity !== undefined) {
 		const text = isRecord(normalized.text) ? { ...normalized.text } : {}
 		if (text.verbosity === undefined) {
 			text.verbosity = modelInfo.defaultVerbosity
@@ -609,7 +613,7 @@ const applyModelDefaults = (
 		normalized.text = text
 	}
 
-	if (!modelInfo.useResponsesLite) {
+	if (!modelInfo?.useResponsesLite) {
 		return
 	}
 
@@ -640,11 +644,29 @@ const applyModelDefaults = (
 	delete normalized.tools
 }
 
+const stripUnsupportedResponsesFields = <T>(value: T): T => {
+	if (Array.isArray(value)) {
+		return value.map(stripUnsupportedResponsesFields) as unknown as T
+	}
+	if (isRecord(value)) {
+		const result: Record<string, unknown> = {}
+		for (const [key, val] of Object.entries(value)) {
+			if (key === "cache_control") {
+				continue
+			}
+			result[key] = stripUnsupportedResponsesFields(val)
+		}
+		return result as unknown as T
+	}
+	return value
+}
+
 const normalizeCodexResponsesBodyInternal = (
 	body: Record<string, unknown>,
 	options: InternalNormalizeCodexResponsesBodyOptions = {},
 ): Record<string, unknown> => {
-	const normalized = { ...body }
+	const cleaned = stripUnsupportedResponsesFields(body) as Record<string, unknown>
+	const normalized = { ...cleaned }
 	const instructions =
 		typeof normalized.instructions === "string"
 			? normalized.instructions
@@ -660,6 +682,9 @@ const normalizeCodexResponsesBodyInternal = (
 		normalized.stream = true
 	}
 	delete normalized.max_output_tokens
+	delete normalized.max_tokens
+	delete normalized.preserve_raw_usage
+	delete normalized.cache_control
 	return normalized
 }
 

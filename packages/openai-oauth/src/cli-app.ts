@@ -47,6 +47,10 @@ export type CliArgs = {
 	loginTimeoutMs?: number
 	detach?: boolean
 	follow?: boolean
+	stateless?: boolean
+	verbose?: boolean
+	openrouterApiKey?: string
+	openrouterBaseUrl?: string
 	internalDetachedChild?: boolean
 }
 
@@ -95,10 +99,14 @@ const helpLines = [
 	"  --oauth-file <path>        Path to the local auth.json file.",
 	"  --no-open                  Print the login URL without opening a browser.",
 	"  --login-timeout-ms <ms>    Login timeout. Default: 300000",
+	"  --openrouter-api-key <key> Fallback OpenRouter API key for non-local models.",
+	"  --openrouter-base-url <url> Override upstream OpenRouter base URL.",
 	"",
 	"Flags",
 	"  -d, --detach               Run in the background",
 	"  -f, --follow               Follow logs",
+	"  -v, --verbose              Show detailed incoming request logs",
+	"  --stateless                Disable conversation replay caching on /v1/responses",
 	"  --help                     Show help",
 	`  --version                  Show version (${packageVersion})`,
 	"",
@@ -167,6 +175,26 @@ const createCliParser = (argv: string[]) =>
 			default: false,
 			describe: "Follow logs.",
 		})
+		.option("verbose", {
+			alias: "v",
+			type: "boolean",
+			describe: "Show detailed incoming request logs.",
+		})
+		.option("stateless", {
+			type: "boolean",
+			default: false,
+			describe: "Disable conversation replay caching on /v1/responses.",
+		})
+		.option("openrouter-api-key", {
+			type: "string",
+			describe:
+				"Fallback OpenRouter API key when not supplied in request headers.",
+		})
+		.option("openrouter-base-url", {
+			type: "string",
+			describe:
+				"Override OpenRouter base URL (default: https://openrouter.ai/api/v1).",
+		})
 		.option("internal-detached-child", {
 			type: "boolean",
 			default: false,
@@ -204,6 +232,9 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 		command === "serve" && first !== "serve" ? argv : argv.slice(1),
 	).parseSync()
 
+	const isForeground = !parsed.detach
+	const verbose = parsed.verbose ?? (isForeground ? true : undefined)
+
 	return {
 		command,
 		host: parsed.host,
@@ -218,6 +249,10 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
 		loginTimeoutMs: parsed.loginTimeoutMs,
 		detach: parsed.detach,
 		follow: parsed.follow,
+		stateless: parsed.stateless,
+		verbose,
+		openrouterApiKey: parsed.openrouterApiKey,
+		openrouterBaseUrl: parsed.openrouterBaseUrl,
 		internalDetachedChild: parsed.internalDetachedChild,
 	}
 }
@@ -231,6 +266,10 @@ export const toServerOptions = (args: CliArgs) => ({
 	clientId: args.clientId,
 	tokenUrl: args.tokenUrl,
 	authFilePath: args.authFilePath,
+	responsesState: args.stateless ? false : undefined,
+	verbose: args.verbose,
+	openrouterApiKey: args.openrouterApiKey ?? process.env.OPENROUTER_API_KEY,
+	openrouterBaseUrl: args.openrouterBaseUrl ?? process.env.OPENROUTER_BASE_URL,
 })
 
 export const toLoginOptions = (args: CliArgs) => ({
