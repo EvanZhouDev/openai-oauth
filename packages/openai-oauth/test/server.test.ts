@@ -281,11 +281,12 @@ describe("openai oauth server", () => {
 
 	test("returns finish reason and usage for chat completions", async () => {
 		const authFilePath = await createAuthFile()
+		const upstreamBodies: Array<Record<string, unknown>> = []
 		const handler = createOpenAIOAuthFetchHandler({
 			authFilePath,
 			codexVersion: "0.144.1",
 			ensureFresh: false,
-			fetch: async (input) => {
+			fetch: async (input, init) => {
 				if (String(input).includes("/backend-api/codex/models?")) {
 					return Response.json({
 						models: [
@@ -298,6 +299,7 @@ describe("openai oauth server", () => {
 					})
 				}
 
+				upstreamBodies.push(JSON.parse(String(init?.body)))
 				return new Response(
 					[
 						"event: response.created",
@@ -333,6 +335,7 @@ describe("openai oauth server", () => {
 				body: JSON.stringify({
 					model: "gpt-5.4-mini",
 					messages: [{ role: "user", content: "say hello" }],
+					prompt_cache_key: "session-1",
 				}),
 			}),
 		)
@@ -357,6 +360,24 @@ describe("openai oauth server", () => {
 				},
 			},
 		})
+		expect(upstreamBodies.at(-1)?.prompt_cache_key).toBe("session-1")
+
+		const streamed = await handler(
+			new Request("http://localhost/v1/chat/completions", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					model: "gpt-5.4-mini",
+					messages: [{ role: "user", content: "say hello" }],
+					prompt_cache_key: "session-2",
+					stream: true,
+				}),
+			}),
+		)
+		await streamed.text()
+		expect(upstreamBodies.at(-1)?.prompt_cache_key).toBe("session-2")
 
 		await fs.rm(path.dirname(authFilePath), {
 			recursive: true,

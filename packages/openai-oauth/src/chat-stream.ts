@@ -69,6 +69,7 @@ export const streamChatCompletions = async (
 			openai: {
 				parallelToolCalls: request.parallel_tool_calls,
 				reasoningEffort: request.reasoning_effort,
+				promptCacheKey: request.prompt_cache_key,
 			},
 		},
 	})

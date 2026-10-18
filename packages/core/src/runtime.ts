@@ -731,6 +731,15 @@ const prepareResponsesRequestBody = async (
 		if (modelInfo?.useResponsesLite) {
 			headers.set(RESPONSES_LITE_HEADER, "true")
 		}
+		// Codex reuses its prompt cache only for requests that carry a session_id
+		// header; prompt_cache_key alone gets no cache hits.
+		if (
+			typeof normalized.prompt_cache_key === "string" &&
+			normalized.prompt_cache_key &&
+			!headers.has("session_id")
+		) {
+			headers.set("session_id", normalized.prompt_cache_key)
+		}
 
 		if (state?.requiresCachedState(normalized)) {
 			await state.waitForPendingCaptures()

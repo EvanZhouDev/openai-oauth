@@ -65,6 +65,7 @@ export type ChatRequest = {
 	stop?: string | string[]
 	max_tokens?: number
 	parallel_tool_calls?: boolean
+	prompt_cache_key?: string
 	reasoning_effort?:
 		| "none"
 		| "minimal"

@@ -231,6 +231,7 @@ describe("createCodexOAuthFetch", () => {
 				input: "Hello",
 				tools: [{ type: "function", name: "weather" }],
 				parallel_tool_calls: true,
+				prompt_cache_key: "conversation-1",
 			}),
 		})
 
@@ -244,6 +245,8 @@ describe("createCodexOAuthFetch", () => {
 		const headers = new Headers(init?.headers)
 		const body = JSON.parse(String(init?.body))
 		expect(headers.get("x-openai-internal-codex-responses-lite")).toBe("true")
+		expect(headers.get("session_id")).toBe("conversation-1")
+		expect(body.prompt_cache_key).toBe("conversation-1")
 		expect(body.stream).toBe(true)
 		expect(body).toMatchObject({
 			instructions: "",

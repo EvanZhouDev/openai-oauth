@@ -112,6 +112,7 @@ export const handleChatCompletionsRequest = async (
 				openai: {
 					parallelToolCalls: body.parallel_tool_calls,
 					reasoningEffort: body.reasoning_effort,
+					promptCacheKey: body.prompt_cache_key,
 				},
 			},
 		})
