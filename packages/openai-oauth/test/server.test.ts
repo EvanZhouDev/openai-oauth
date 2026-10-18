@@ -364,6 +364,71 @@ describe("openai oauth server", () => {
 		})
 	})
 
+	test("sends data URL images inline instead of downloading them", async () => {
+		const authFilePath = await createAuthFile()
+		const upstreamBodies: Array<Record<string, unknown>> = []
+		const handler = createOpenAIOAuthFetchHandler({
+			authFilePath,
+			codexVersion: "0.144.1",
+			ensureFresh: false,
+			fetch: async (input, init) => {
+				if (String(input).includes("/backend-api/codex/models?")) {
+					return Response.json({
+						models: [{ slug: "gpt-5.4-mini", visibility: "list" }],
+					})
+				}
+
+				upstreamBodies.push(JSON.parse(String(init?.body)))
+				return new Response(
+					[
+						"event: response.completed",
+						'data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-5.4-mini","created_at":1735689600,"status":"completed","output":[],"usage":{"input_tokens":3,"output_tokens":2}}}',
+						"",
+						"",
+					].join("\n"),
+					{
+						headers: { "Content-Type": "text/event-stream" },
+					},
+				)
+			},
+		})
+
+		const response = await handler(
+			new Request("http://localhost/v1/chat/completions", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					model: "gpt-5.4-mini",
+					messages: [
+						{
+							role: "user",
+							content: [
+								{ type: "text", text: "what is this?" },
+								{
+									type: "image_url",
+									image_url: { url: "data:image/png;base64,AQID" },
+								},
+							],
+						},
+					],
+				}),
+			}),
+		)
+
+		const result = await response.json()
+		expect(response.status, JSON.stringify(result)).toBe(200)
+		expect(JSON.stringify(upstreamBodies.at(-1)?.input)).toContain(
+			"data:image/png;base64,AQID",
+		)
+
+		await fs.rm(path.dirname(authFilePath), {
+			recursive: true,
+			force: true,
+		})
+	})
+
 	test("rejects previous_response_id on the stateless responses endpoint", async () => {
 		const authFilePath = await createAuthFile()
 		const fetch = vi.fn()

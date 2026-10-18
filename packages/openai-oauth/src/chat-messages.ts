@@ -81,7 +81,7 @@ const toUserContent = (content: unknown) => {
 
 	const parts: Array<
 		| { type: "text"; text: string }
-		| { type: "image"; image: URL; mediaType?: string }
+		| { type: "image"; image: URL | string; mediaType?: string }
 	> = []
 
 	for (const item of content) {
@@ -99,6 +99,14 @@ const toUserContent = (content: unknown) => {
 			isRecord(item.image_url) &&
 			typeof item.image_url.url === "string"
 		) {
+			// The AI SDK tries to download every URL image and rejects data: URLs,
+			// so inline images go in as base64 with their media type.
+			const [, mediaType, data] =
+				/^data:([^;,]+)[^,]*;base64,(.*)$/s.exec(item.image_url.url) ?? []
+			if (mediaType && data !== undefined) {
+				parts.push({ type: "image", image: data, mediaType })
+				continue
+			}
 			try {
 				parts.push({ type: "image", image: new URL(item.image_url.url) })
 			} catch {}
