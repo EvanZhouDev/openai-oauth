@@ -11,6 +11,24 @@ const usesServerReplayState = (body: Record<string, unknown>): boolean =>
 				typeof item.id === "string",
 		))
 
+// The Codex backend is reasoning-only: it rejects `temperature`, `top_p` and
+// `user` with "Unsupported parameter" regardless of the requested model. See #49.
+const CODEX_UNSUPPORTED_RESPONSE_FIELDS = [
+	"temperature",
+	"top_p",
+	"user",
+] as const
+
+const normalizeResponsesBody = (
+	body: Record<string, unknown>,
+): Record<string, unknown> => {
+	const normalized = { ...body }
+	for (const field of CODEX_UNSUPPORTED_RESPONSE_FIELDS) {
+		delete normalized[field]
+	}
+	return normalized
+}
+
 export const handleResponsesRequest = async (
 	request: Request,
 	client: OpenAIOAuthTransport,
@@ -31,7 +49,7 @@ export const handleResponsesRequest = async (
 		headers: {
 			"Content-Type": "application/json",
 		},
-		body: JSON.stringify(body),
+		body: JSON.stringify(normalizeResponsesBody(body)),
 		signal: request.signal,
 	})
 	return copyUpstreamResponse(upstream)
