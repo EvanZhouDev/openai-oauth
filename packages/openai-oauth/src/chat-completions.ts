@@ -99,8 +99,9 @@ export const handleChatCompletionsRequest = async (
 			messages: toModelMessages(body.messages),
 			tools: createToolSet(body.tools),
 			toolChoice: toToolChoice(body.tool_choice),
-			temperature: body.temperature,
-			topP: body.top_p,
+			// The Codex backend is reasoning-only and rejects `temperature`/`top_p`
+			// with "Unsupported parameter" for models the AI SDK does not classify
+			// as reasoning models (e.g. the gpt-6 family). See #49.
 			stopSequences:
 				typeof body.stop === "string"
 					? [body.stop]

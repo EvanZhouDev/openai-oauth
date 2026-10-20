@@ -499,4 +499,157 @@ describe("openai oauth server", () => {
 			}),
 		)
 	})
+
+	test("strips Codex-unsupported parameters from the direct responses endpoint", async () => {
+		const authFilePath = await createAuthFile()
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			if (String(input).includes("/backend-api/codex/models?")) {
+				return new Response(
+					JSON.stringify({
+						models: [{ slug: "gpt-5.2", visibility: "list" }],
+					}),
+				)
+			}
+			const stream = new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(
+						new TextEncoder().encode(
+							[
+								"event: response.completed",
+								'data: {"response":{"id":"resp_1","status":"completed","output":[{"type":"message"}]}}',
+								"",
+							].join("\n"),
+						),
+					)
+					controller.close()
+				},
+			})
+
+			return new Response(stream, { status: 200 })
+		})
+		const handler = createOpenAIOAuthFetchHandler({
+			authFilePath,
+			ensureFresh: false,
+			fetch,
+		})
+
+		const response = await handler(
+			new Request("http://localhost/v1/responses", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					model: "gpt-6-astra",
+					stream: false,
+					temperature: 1,
+					top_p: 0.9,
+					user: "user-1",
+					input: [{ type: "message", role: "user", content: "hi" }],
+				}),
+			}),
+		)
+
+		const responseCalls = fetch.mock.calls.filter(([input]) =>
+			String(input).endsWith("/backend-api/codex/responses"),
+		)
+		expect(responseCalls).toHaveLength(1)
+		const [, init] = responseCalls[0] ?? []
+		const upstreamBody = JSON.parse(String(init?.body))
+		expect(upstreamBody.temperature).toBeUndefined()
+		expect(upstreamBody.top_p).toBeUndefined()
+		expect(upstreamBody.user).toBeUndefined()
+		expect(upstreamBody).toMatchObject({
+			model: "gpt-6-astra",
+			input: [{ type: "message", role: "user", content: "hi" }],
+		})
+
+		expect(response.status).toBe(200)
+
+		await fs.rm(path.dirname(authFilePath), {
+			recursive: true,
+			force: true,
+		})
+	})
+
+	test("does not forward temperature or top_p from chat completions", async () => {
+		const authFilePath = await createAuthFile()
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			if (String(input).includes("/backend-api/codex/models?")) {
+				return Response.json({
+					models: [
+						{
+							slug: "gpt-6-astra",
+							visibility: "list",
+							use_responses_lite: true,
+						},
+					],
+				})
+			}
+
+			return new Response(
+				[
+					"event: response.created",
+					'data: {"type":"response.created","response":{"id":"resp_1","model":"gpt-6-astra","created_at":1735689600}}',
+					"",
+					"event: response.output_item.added",
+					'data: {"type":"response.output_item.added","output_index":0,"item":{"type":"message","id":"msg_1","phase":"final_answer"}}',
+					"",
+					"event: response.output_text.delta",
+					'data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":0,"content_index":0,"delta":"hello"}',
+					"",
+					"event: response.output_item.done",
+					'data: {"type":"response.output_item.done","output_index":0,"item":{"type":"message","id":"msg_1","phase":"final_answer"}}',
+					"",
+					"event: response.completed",
+					'data: {"type":"response.completed","response":{"id":"resp_1","model":"gpt-6-astra","created_at":1735689600,"status":"completed","output":[],"usage":{"input_tokens":3,"input_tokens_details":{"cached_tokens":1},"output_tokens":2,"output_tokens_details":{"reasoning_tokens":0}}}}',
+					"",
+					"",
+				].join("\n"),
+				{
+					headers: { "Content-Type": "text/event-stream" },
+				},
+			)
+		})
+		const handler = createOpenAIOAuthFetchHandler({
+			authFilePath,
+			ensureFresh: false,
+			fetch,
+		})
+
+		const response = await handler(
+			new Request("http://localhost/v1/chat/completions", {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({
+					model: "gpt-6-astra",
+					temperature: 1,
+					top_p: 0.9,
+					max_tokens: 64,
+					messages: [{ role: "user", content: "say hello" }],
+				}),
+			}),
+		)
+
+		expect(response.status, JSON.stringify(await response.clone().json())).toBe(
+			200,
+		)
+
+		const responseCalls = fetch.mock.calls.filter(([input]) =>
+			String(input).endsWith("/backend-api/codex/responses"),
+		)
+		expect(responseCalls.length).toBeGreaterThan(0)
+		for (const [, init] of responseCalls) {
+			const upstreamBody = JSON.parse(String(init?.body))
+			expect(upstreamBody.temperature).toBeUndefined()
+			expect(upstreamBody.top_p).toBeUndefined()
+		}
+
+		await fs.rm(path.dirname(authFilePath), {
+			recursive: true,
+			force: true,
+		})
+	})
 })
