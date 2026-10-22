@@ -3,6 +3,8 @@ dist*/
 coverage
 .next
 apps/demo/next-env.d.ts
+apps/agent/next-env.d.ts
+.agent-workspace
 .turbo
 *.tsbuildinfo
 .DS_Store
